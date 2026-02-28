@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ManageMe - Zarządzanie Projektami</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>ManageMe</h1>
+        <p>Zarządzanie projektami</p>
+      </header>
+      
+      <main>
+        <section class="project-form">
+          <h2>Dodaj nowy projekt</h2>
+          <form id="addProjectForm">
+            <div class="form-group">
+              <label for="projectName">Nazwa projektu:</label>
+              <input type="text" id="projectName" name="name" required placeholder="Wprowadź nazwę projektu" />
+            </div>
+            <div class="form-group">
+              <label for="projectDescription">Opis:</label>
+              <textarea id="projectDescription" name="description" required placeholder="Wprowadź opis projektu"></textarea>
+            </div>
+            <button type="submit">Dodaj projekt</button>
+          </form>
+        </section>
+
+        <section class="project-list">
+          <h2>Lista projektów</h2>
+          <div id="projectsContainer"></div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
+
