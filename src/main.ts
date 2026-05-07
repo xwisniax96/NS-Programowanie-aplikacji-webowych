@@ -2,6 +2,24 @@ import './style.css';
 import { ProjectService, UserStoryService, TaskService } from './storage';
 import { AuthService } from './authService';
 
+// --- LOGIKA TRYBU CIEMNEGO ---
+const themeToggleBtn = document.getElementById('theme-toggle')!;
+if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    document.documentElement.classList.add('dark');
+} else {
+    document.documentElement.classList.remove('dark');
+}
+
+themeToggleBtn.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark');
+    if (document.documentElement.classList.contains('dark')) {
+        localStorage.setItem('theme', 'dark');
+    } else {
+        localStorage.setItem('theme', 'light');
+    }
+});
+// -----------------------------
+
 const projectService = new ProjectService();
 const storyService = new UserStoryService();
 const taskService = new TaskService();
@@ -10,30 +28,34 @@ const authService = new AuthService();
 const projectsSection = document.querySelector<HTMLElement>('#projects-section')!;
 const activeProjectSection = document.querySelector<HTMLElement>('#active-project-section')!;
 const activeStorySection = document.querySelector<HTMLElement>('#active-story-section')!;
+const backToProjectsBtn = document.querySelector<HTMLElement>('#back-to-projects')!;
 
 let editingProjectId: string | null = null;
 let activeStoryId: string | null = null;
 
 const currentUser = authService.getCurrentUser();
-document.querySelector('#user-info')!.innerHTML = `Zalogowany: <strong>${currentUser.firstName} ${currentUser.lastName}</strong> <span style="background: #000; color:#fff; padding: 2px 6px; border-radius: 4px; font-size: 12px;">${currentUser.role.toUpperCase()}</span>`;
+document.querySelector('#user-info')!.innerHTML = `Zalogowany: <strong>${currentUser.firstName} ${currentUser.lastName}</strong> <span class="ml-2 bg-gray-800 dark:bg-gray-200 text-white dark:text-black px-2 py-1 rounded text-xs font-bold">${currentUser.role.toUpperCase()}</span>`;
 
 function render() {
     const activeProjectId = projectService.getActiveProjectId();
 
     if (activeStoryId) {
-        projectsSection.style.display = 'none';
-        activeProjectSection.style.display = 'none';
-        activeStorySection.style.display = 'block';
+        projectsSection.classList.add('hidden');
+        activeProjectSection.classList.add('hidden');
+        activeStorySection.classList.remove('hidden');
+        backToProjectsBtn.classList.remove('hidden');
         renderTasks(activeStoryId);
     } else if (activeProjectId) {
-        projectsSection.style.display = 'none';
-        activeProjectSection.style.display = 'block';
-        activeStorySection.style.display = 'none';
+        projectsSection.classList.add('hidden');
+        activeProjectSection.classList.remove('hidden');
+        activeStorySection.classList.add('hidden');
+        backToProjectsBtn.classList.remove('hidden');
         renderStories(activeProjectId);
     } else {
-        projectsSection.style.display = 'block';
-        activeProjectSection.style.display = 'none';
-        activeStorySection.style.display = 'none';
+        projectsSection.classList.remove('hidden');
+        activeProjectSection.classList.add('hidden');
+        activeStorySection.classList.add('hidden');
+        backToProjectsBtn.classList.add('hidden');
         renderProjects();
     }
 }
@@ -41,11 +63,13 @@ function render() {
 function renderProjects() {
     const list = document.querySelector('#project-list')!;
     list.innerHTML = projectService.getAll().map(p => `
-        <li style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #eee;">
-            <span class="open-project" data-id="${p.id}" style="cursor:pointer; font-weight:bold; color: #007bff; flex-grow: 1;">📁 ${p.name}</span>
-            <div>
-                <button class="edit-btn" data-id="${p.id}" style="background: #ffb703; padding: 8px; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;">Edytuj</button>
-                <button class="delete-btn" data-id="${p.id}" style="background: #ff4646; color: white; padding: 8px; border: none; border-radius: 4px; cursor: pointer;">Usuń</button>
+        <li class="flex flex-col sm:flex-row justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+            <span class="open-project cursor-pointer font-bold text-blue-600 dark:text-blue-400 flex-grow hover:underline" data-id="${p.id}">
+                📁 ${p.name}
+            </span>
+            <div class="mt-4 sm:mt-0 flex gap-2">
+                <button class="edit-btn bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg transition-colors" data-id="${p.id}">Edytuj</button>
+                <button class="delete-btn bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors" data-id="${p.id}">Usuń</button>
             </div>
         </li>
     `).join('');
@@ -94,14 +118,19 @@ function renderStories(projectId: string) {
 
     storyService.getByProject(projectId).forEach(s => {
         const owner = authService.getUserById(s.ownerId);
+        const borderColor = s.status === 'done' ? 'border-l-green-500' : 'border-l-blue-500';
+        
         const li = `
-            <li style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 10px; border-left: 4px solid ${s.status === 'done' ? '#28a745' : '#007bff'};">
-                <strong>${s.name}</strong> <span style="font-size: 11px; background: #eee; padding: 2px 4px; border-radius: 3px;">${s.priority}</span>
-                <p style="margin: 5px 0; font-size: 14px;">${s.description}</p>
-                <small style="color: #666;">Dodał: ${owner ? owner.firstName + ' ' + owner.lastName : 'Nieznany'}</small>
+            <li class="bg-white dark:bg-gray-700 p-4 rounded-lg shadow-sm border-l-4 ${borderColor}">
+                <div class="flex justify-between items-start">
+                    <strong class="text-lg">${s.name}</strong>
+                    <span class="text-xs bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded">${s.priority}</span>
+                </div>
+                <p class="my-2 text-sm text-gray-600 dark:text-gray-300">${s.description}</p>
+                <small class="text-gray-500 dark:text-gray-400 block">Dodał: ${owner ? owner.firstName + ' ' + owner.lastName : 'Nieznany'}</small>
                 
-                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ccc;">
-                    <button style="width: 100%; background: #6f42c1; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer;" onclick="window.openStory('${s.id}')">Zarządzaj Zadaniami ➔</button>
+                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-600">
+                    <button class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition-colors" onclick="window.openStory('${s.id}')">Zarządzaj Zadaniami ➔</button>
                 </div>
             </li>
         `;
@@ -109,7 +138,7 @@ function renderStories(projectId: string) {
     });
 }
 
-document.querySelector('#back-to-projects')!.addEventListener('click', () => {
+backToProjectsBtn.addEventListener('click', () => {
     projectService.setActiveProjectId(null);
     render();
 });
@@ -142,34 +171,34 @@ function renderTasks(storyId: string) {
 
     taskService.getByStory(storyId).forEach(t => {
         let actionHTML = '';
-        let detailsHTML = `<small style="display:block; margin-top:5px; color: #555;">Czas: ${t.estimatedTime}h | Priorytet: ${t.priority}</small>`;
+        let detailsHTML = `<small class="block mt-2 text-gray-500 dark:text-gray-400">Czas: ${t.estimatedTime}h | Priorytet: ${t.priority}</small>`;
 
         if (t.status === 'todo') {
             actionHTML = `
-                <div style="margin-top: 10px; display:flex; gap: 5px;">
-                    <select id="assign-${t.id}" style="flex:1; padding: 4px;">
+                <div class="mt-3 flex gap-2">
+                    <select id="assign-${t.id}" class="flex-1 p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm">
                         <option value="" disabled selected>Wybierz wykonawcę...</option>
                         ${userOptions}
                     </select>
-                    <button style="background: #007bff; color: white; border: none; padding: 4px 8px; cursor: pointer;" onclick="window.startTask('${t.id}')">Start</button>
+                    <button class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition-colors" onclick="window.startTask('${t.id}')">Start</button>
                 </div>
             `;
         } else if (t.status === 'doing') {
             const assignee = authService.getUserById(t.assignedUserId!);
-            detailsHTML += `<small style="display:block; color: #d35400;">Wykonuje: <b>${assignee?.firstName} ${assignee?.lastName}</b><br>Start: ${new Date(t.startDate!).toLocaleTimeString()}</small>`;
-            actionHTML = `<button style="margin-top: 10px; width: 100%; background: #28a745; color: white; border: none; padding: 6px; cursor: pointer;" onclick="window.finishTask('${t.id}')">Zakończ zadanie ✅</button>`;
+            detailsHTML += `<small class="block text-amber-600 dark:text-amber-400 mt-1">Wykonuje: <b>${assignee?.firstName} ${assignee?.lastName}</b><br>Start: ${new Date(t.startDate!).toLocaleTimeString()}</small>`;
+            actionHTML = `<button class="mt-3 w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded transition-colors" onclick="window.finishTask('${t.id}')">Zakończ zadanie ✅</button>`;
         } else if (t.status === 'done') {
             const assignee = authService.getUserById(t.assignedUserId!);
-            detailsHTML += `<small style="display:block; color: #28a745;">Wykonano przez: <b>${assignee?.firstName} ${assignee?.lastName}</b><br>Zakończono: ${new Date(t.endDate!).toLocaleTimeString()}</small>`;
+            detailsHTML += `<small class="block text-green-600 dark:text-green-400 mt-1">Wykonano przez: <b>${assignee?.firstName} ${assignee?.lastName}</b><br>Zakończono: ${new Date(t.endDate!).toLocaleTimeString()}</small>`;
         }
 
         const li = `
-            <li style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #ccc;">
-                <strong>${t.name}</strong>
-                <p style="margin: 5px 0; font-size: 13px;">${t.description}</p>
+            <li class="bg-white dark:bg-gray-700 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600 mb-4">
+                <strong class="block text-lg mb-1">${t.name}</strong>
+                <p class="text-sm text-gray-700 dark:text-gray-300">${t.description}</p>
                 ${detailsHTML}
                 ${actionHTML}
-                <button style="margin-top: 5px; width: 100%; background: #ff4646; color: white; border: none; padding: 4px; cursor: pointer;" onclick="window.deleteTask('${t.id}')">Usuń zadanie</button>
+                <button class="mt-3 w-full bg-red-500 hover:bg-red-600 text-white py-1 rounded text-sm transition-colors" onclick="window.deleteTask('${t.id}')">Usuń zadanie</button>
             </li>
         `;
         (columns as any)[t.status].innerHTML += li;
@@ -196,15 +225,13 @@ document.querySelector('#task-form')!.addEventListener('submit', (e) => {
 
 (window as any).startTask = (taskId: string) => {
     const selectEl = document.querySelector<HTMLSelectElement>(`#assign-${taskId}`);
-    if (!selectEl || !selectEl.value) { alert('Musisz przypisać osobę (DevOps / Developer)!'); return; }
-    
+    if (!selectEl || !selectEl.value) { alert('Musisz przypisać osobę!'); return; }
     const task = taskService.getAll().find(t => t.id === taskId);
     if (task) {
         task.assignedUserId = selectEl.value;
         task.status = 'doing';
         task.startDate = new Date().toISOString();
         taskService.update(task);
-
         const story = storyService.getAll().find(s => s.id === task.storyId);
         if (story && story.status === 'todo') {
             story.status = 'doing';
@@ -222,7 +249,6 @@ document.querySelector('#task-form')!.addEventListener('submit', (e) => {
         taskService.update(task);
         const storyTasks = taskService.getByStory(task.storyId);
         const allDone = storyTasks.every(t => t.status === 'done');
-        
         if (allDone) {
             const story = storyService.getAll().find(s => s.id === task.storyId);
             if (story) {
