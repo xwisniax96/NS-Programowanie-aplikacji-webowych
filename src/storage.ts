@@ -1,10 +1,9 @@
-import type { Project, UserStory } from './types';
+import type { Project, UserStory, Task } from './types';
 
 export class ProjectService {
     private readonly STORAGE_KEY = 'manageme_projects';
     private readonly ACTIVE_ID_KEY = 'manageme_active_project_id';
 
-    // ... (getAll, save, create, delete, update zostają bez zmian) ...
     getAll(): Project[] {
         const data = localStorage.getItem(this.STORAGE_KEY);
         return data ? JSON.parse(data) : [];
@@ -47,7 +46,6 @@ export class UserStoryService {
         return data ? JSON.parse(data) : [];
     }
 
-    // Pobierz tylko te historyjki, które należą do danego projektu
     getByProject(projectId: string): UserStory[] {
         return this.getAll().filter(s => s.projectId === projectId);
     }
@@ -72,5 +70,41 @@ export class UserStoryService {
     update(updatedStory: UserStory): void {
         const stories = this.getAll().map(s => s.id === updatedStory.id ? updatedStory : s);
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(stories));
+    }
+}
+
+export class TaskService {
+    private readonly STORAGE_KEY = 'manageme_tasks';
+
+    getAll(): Task[] {
+        const data = localStorage.getItem(this.STORAGE_KEY);
+        return data ? JSON.parse(data) : [];
+    }
+
+    getByStory(storyId: string): Task[] {
+        return this.getAll().filter(t => t.storyId === storyId);
+    }
+
+    create(taskData: Omit<Task, 'id' | 'createdAt' | 'status'>): Task {
+        const tasks = this.getAll();
+        const newTask: Task = {
+            ...taskData,
+            id: crypto.randomUUID(),
+            createdAt: new Date().toISOString(),
+            status: 'todo'
+        };
+        tasks.push(newTask);
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(tasks));
+        return newTask;
+    }
+
+    update(updatedTask: Task): void {
+        const tasks = this.getAll().map(t => t.id === updatedTask.id ? updatedTask : t);
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(tasks));
+    }
+
+    delete(id: string): void {
+        const tasks = this.getAll().filter(t => t.id !== id);
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(tasks));
     }
 }

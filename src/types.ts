@@ -1,25 +1,41 @@
+export type Role = 'admin' | 'devops' | 'developer';
+export type Priority = 'low' | 'medium' | 'high';
+export type Status = 'todo' | 'doing' | 'done';
+
 export interface User {
     id: string;
     firstName: string;
     lastName: string;
-}
-
-export type Priority = 'low' | 'medium' | 'high';
-export type Status = 'todo' | 'doing' | 'done';
-
-export interface UserStory {
-    id: string;
-    name: string;
-    description: string;
-    priority: Priority;
-    projectId: string; // Relacja do projektu
-    createdAt: string;
-    status: Status;
-    ownerId: string; // Relacja do użytkownika
+    role: Role;
 }
 
 export interface Project {
     id: string;
     name: string;
     description: string;
+}
+
+export interface UserStory {
+    id: string;
+    name: string;
+    description: string;
+    priority: Priority;
+    projectId: string;
+    createdAt: string;
+    status: Status;
+    ownerId: string;
+}
+
+export interface Task {
+    id: string;
+    name: string;
+    description: string;
+    priority: Priority;
+    storyId: string;
+    estimatedTime: number;
+    status: Status;
+    createdAt: string;
+    startDate?: string; 
+    endDate?: string;
+    assignedUserId?: string;
 }

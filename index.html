@@ -2,7 +2,7 @@
 <html lang="pl">
   <head>
     <meta charset="UTF-8" />
-    <title>ManageMe - Kanban</title>
+    <title>ManageMe</title>
     <link rel="stylesheet" href="/src/style.css">
   </head>
   <body>
@@ -10,61 +10,72 @@
       
       <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px;">
         <div id="user-info"></div>
-        <button id="back-to-projects" style="display: none; background: #6c757d;">⬅ Wróć do projektów</button>
       </header>
 
       <section id="projects-section">
         <h1>Moje Projekty 🚀</h1>
-        
         <form id="project-form">
           <input type="text" id="name" placeholder="Nazwa projektu" required>
           <textarea id="description" placeholder="Opis projektu" required></textarea>
           <button type="submit">Dodaj Projekt</button>
         </form>
-
         <div id="project-list-container">
           <h2>Wybierz projekt z listy:</h2>
-          <ul id="project-list"></ul>
+          <ul id="project-list" style="list-style: none; padding: 0;"></ul>
         </div>
       </section>
 
       <section id="active-project-section" style="display: none;">
-        <h1 id="active-project-name">Tablica Zadań</h1>
+        <button id="back-to-projects" style="background: #6c757d; margin-bottom: 20px;">⬅ Wróć do projektów</button>
+        <h1 id="active-project-name"></h1>
         <p id="active-project-desc"></p>
 
-        <h3>Dodaj nową historyjkę</h3>
+        <h3 style="margin-top: 20px;">Dodaj nową historyjkę</h3>
         <form id="story-form" style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
-          <input type="text" id="story-name" placeholder="Co jest do zrobienia?" required>
-          <textarea id="story-desc" placeholder="Opis zadania"></textarea>
+          <input type="text" id="story-name" placeholder="Nazwa funkcjonalności" required>
+          <textarea id="story-desc" placeholder="Opis"></textarea>
           <select id="story-priority" style="padding: 10px; border-radius: 6px; border: 1px solid #ccc;">
             <option value="low">Priorytet: Niski</option>
             <option value="medium" selected>Priorytet: Średni</option>
             <option value="high">Priorytet: Wysoki</option>
           </select>
+          <button type="submit" style="background: #17a2b8;">DODAJ HISTORYJKĘ</button>
+        </form>
+
+        <div class="board" style="display: flex; gap: 20px; margin-top: 30px; align-items: flex-start;">
+          <div class="column" style="flex: 1; background: #e9ecef; padding: 15px; border-radius: 8px;"><h4 style="text-align: center;">📝 TODO</h4><ul id="todo-list" style="list-style: none; padding: 0;"></ul></div>
+          <div class="column" style="flex: 1; background: #fff3cd; padding: 15px; border-radius: 8px;"><h4 style="text-align: center;">⏳ DOING</h4><ul id="doing-list" style="list-style: none; padding: 0;"></ul></div>
+          <div class="column" style="flex: 1; background: #d4edda; padding: 15px; border-radius: 8px;"><h4 style="text-align: center;">✅ DONE</h4><ul id="done-list" style="list-style: none; padding: 0;"></ul></div>
+        </div>
+      </section>
+
+      <section id="active-story-section" style="display: none;">
+        <button id="back-to-project" style="background: #6c757d; margin-bottom: 20px;">⬅ Wróć do tablicy projektu</button>
+        <h2>Szczegóły historyjki: <span id="active-story-name" style="color: #007bff;"></span></h2>
+        
+        <form id="task-form" style="background: #e3f2fd; padding: 15px; border-radius: 8px; display: flex; flex-direction: column; gap: 10px;">
+          <h3>Rozbij na zadania</h3>
+          <input type="text" id="task-name" placeholder="Nazwa zadania" required style="padding: 10px;">
+          <textarea id="task-desc" placeholder="Opis szczegółowy"></textarea>
+          <div style="display: flex; gap: 10px;">
+            <input type="number" id="task-time" placeholder="Czas (h)" required min="1" style="flex: 1; padding: 10px;">
+            <select id="task-priority" style="flex: 1; padding: 10px;">
+              <option value="low">Niski</option>
+              <option value="medium" selected>Średni</option>
+              <option value="high">Wysoki</option>
+            </select>
+          </div>
           <button type="submit" style="background: #28a745;">DODAJ ZADANIE</button>
         </form>
 
         <div class="board" style="display: flex; gap: 20px; margin-top: 30px; align-items: flex-start;">
-          
-          <div class="column" style="flex: 1; background: #e9ecef; padding: 15px; border-radius: 8px; min-height: 300px;">
-            <h4 style="text-align: center; margin-top: 0;">📝 TODO (Do zrobienia)</h4>
-            <ul id="todo-list" style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px;"></ul>
-          </div>
-          
-          <div class="column" style="flex: 1; background: #fff3cd; padding: 15px; border-radius: 8px; min-height: 300px;">
-            <h4 style="text-align: center; margin-top: 0;">⏳ DOING (W trakcie)</h4>
-            <ul id="doing-list" style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px;"></ul>
-          </div>
-          
-          <div class="column" style="flex: 1; background: #d4edda; padding: 15px; border-radius: 8px; min-height: 300px;">
-            <h4 style="text-align: center; margin-top: 0;">✅ DONE (Zrobione)</h4>
-            <ul id="done-list" style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px;"></ul>
-          </div>
-
+          <div class="column" style="flex: 1; background: #f8f9fa; border: 1px dashed #ccc; padding: 15px;"><h4 style="text-align: center;">Brak przydziału (TODO)</h4><ul id="task-todo-list" style="list-style: none; padding: 0;"></ul></div>
+          <div class="column" style="flex: 1; background: #fff3cd; border: 1px dashed #ffeeba; padding: 15px;"><h4 style="text-align: center;">W pracy (DOING)</h4><ul id="task-doing-list" style="list-style: none; padding: 0;"></ul></div>
+          <div class="column" style="flex: 1; background: #d4edda; border: 1px dashed #c3e6cb; padding: 15px;"><h4 style="text-align: center;">Zakończone (DONE)</h4><ul id="task-done-list" style="list-style: none; padding: 0;"></ul></div>
         </div>
       </section>
+
     </div>
-    
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

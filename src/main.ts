@@ -1,149 +1,107 @@
 import './style.css';
-import { ProjectService, UserStoryService } from './storage';
+import { ProjectService, UserStoryService, TaskService } from './storage';
 import { AuthService } from './authService';
 
 const projectService = new ProjectService();
 const storyService = new UserStoryService();
+const taskService = new TaskService();
 const authService = new AuthService();
 
-// Elementy UI
-const userDiv = document.querySelector('#user-info')!;
 const projectsSection = document.querySelector<HTMLElement>('#projects-section')!;
 const activeProjectSection = document.querySelector<HTMLElement>('#active-project-section')!;
-const backBtn = document.querySelector<HTMLElement>('#back-to-projects')!;
-const projectForm = document.querySelector<HTMLFormElement>('#project-form')!;
-const projectSubmitBtn = projectForm.querySelector<HTMLButtonElement>('button[type="submit"]')!;
-const storyForm = document.querySelector<HTMLFormElement>('#story-form')!;
+const activeStorySection = document.querySelector<HTMLElement>('#active-story-section')!;
 
-// Użytkownik z Mocka
-const user = authService.getCurrentUser();
-userDiv.innerHTML = `Zalogowany: <strong>${user.firstName} ${user.lastName}</strong>`;
-
-// Zmienna do zapamiętania, który projekt edytujemy
 let editingProjectId: string | null = null;
+let activeStoryId: string | null = null;
 
-// GŁÓWNA FUNKCJA
+const currentUser = authService.getCurrentUser();
+document.querySelector('#user-info')!.innerHTML = `Zalogowany: <strong>${currentUser.firstName} ${currentUser.lastName}</strong> <span style="background: #000; color:#fff; padding: 2px 6px; border-radius: 4px; font-size: 12px;">${currentUser.role.toUpperCase()}</span>`;
+
 function render() {
-    const activeId = projectService.getActiveProjectId();
-    if (activeId) {
+    const activeProjectId = projectService.getActiveProjectId();
+
+    if (activeStoryId) {
+        projectsSection.style.display = 'none';
+        activeProjectSection.style.display = 'none';
+        activeStorySection.style.display = 'block';
+        renderTasks(activeStoryId);
+    } else if (activeProjectId) {
         projectsSection.style.display = 'none';
         activeProjectSection.style.display = 'block';
-        backBtn.style.display = 'block';
-        renderStories(activeId);
+        activeStorySection.style.display = 'none';
+        renderStories(activeProjectId);
     } else {
         projectsSection.style.display = 'block';
         activeProjectSection.style.display = 'none';
-        backBtn.style.display = 'none';
+        activeStorySection.style.display = 'none';
         renderProjects();
     }
 }
 
-// --- PROJEKTY ---
 function renderProjects() {
     const list = document.querySelector('#project-list')!;
     list.innerHTML = projectService.getAll().map(p => `
-        <li class="project-item" style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #eee;">
-            <span class="open-project" data-id="${p.id}" style="cursor:pointer; font-weight:bold; color: #007bff; flex-grow: 1;">
-                📁 ${p.name} (Kliknij, aby otworzyć)
-            </span>
+        <li style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #eee;">
+            <span class="open-project" data-id="${p.id}" style="cursor:pointer; font-weight:bold; color: #007bff; flex-grow: 1;">📁 ${p.name}</span>
             <div>
-                <button class="edit-btn" data-id="${p.id}" style="background: #ffb703; color: black; padding: 8px 12px; border: none; border-radius: 6px; cursor: pointer; margin-right: 5px;">Edytuj</button>
-                <button class="delete-btn" data-id="${p.id}" style="background: #ff4646; color: white; padding: 8px 12px; border: none; border-radius: 6px; cursor: pointer;">Usuń</button>
+                <button class="edit-btn" data-id="${p.id}" style="background: #ffb703; padding: 8px; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;">Edytuj</button>
+                <button class="delete-btn" data-id="${p.id}" style="background: #ff4646; color: white; padding: 8px; border: none; border-radius: 4px; cursor: pointer;">Usuń</button>
             </div>
         </li>
     `).join('');
 
-    // Otwieranie projektu
-    document.querySelectorAll('.open-project').forEach(el => {
-        el.addEventListener('click', (e) => {
-            const id = (e.target as HTMLElement).dataset.id!;
-            projectService.setActiveProjectId(id);
-            render();
-        });
-    });
-
-    // Usuwanie projektu
-    document.querySelectorAll('.delete-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const id = (e.target as HTMLButtonElement).dataset.id!;
-            projectService.delete(id);
-            render();
-        });
-    });
-
-    // Edycja projektu
-    document.querySelectorAll('.edit-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const id = (e.target as HTMLButtonElement).dataset.id!;
-            const projectToEdit = projectService.getAll().find(p => p.id === id);
-            if (projectToEdit) {
-                document.querySelector<HTMLInputElement>('#name')!.value = projectToEdit.name;
-                document.querySelector<HTMLTextAreaElement>('#description')!.value = projectToEdit.description;
-                editingProjectId = projectToEdit.id;
-                projectSubmitBtn.textContent = 'Zapisz zmiany';
-                projectSubmitBtn.style.background = '#ffb703';
-            }
-        });
-    });
+    document.querySelectorAll('.open-project').forEach(el => el.addEventListener('click', (e) => {
+        projectService.setActiveProjectId((e.target as HTMLElement).dataset.id!);
+        render();
+    }));
+    document.querySelectorAll('.delete-btn').forEach(btn => btn.addEventListener('click', (e) => {
+        projectService.delete((e.target as HTMLButtonElement).dataset.id!);
+        render();
+    }));
+    document.querySelectorAll('.edit-btn').forEach(btn => btn.addEventListener('click', (e) => {
+        const p = projectService.getAll().find(p => p.id === (e.target as HTMLButtonElement).dataset.id!);
+        if (p) {
+            document.querySelector<HTMLInputElement>('#name')!.value = p.name;
+            document.querySelector<HTMLTextAreaElement>('#description')!.value = p.description;
+            editingProjectId = p.id;
+        }
+    }));
 }
 
-// Obsługa formularza projektów (Dodawanie / Edycja)
-projectForm.addEventListener('submit', (e) => {
+document.querySelector('#project-form')!.addEventListener('submit', (e) => {
     e.preventDefault();
-    const nameInput = document.querySelector<HTMLInputElement>('#name')!;
-    const descInput = document.querySelector<HTMLTextAreaElement>('#description')!;
-
+    const name = document.querySelector<HTMLInputElement>('#name')!.value;
+    const desc = document.querySelector<HTMLTextAreaElement>('#description')!.value;
     if (editingProjectId) {
-        projectService.update({
-            id: editingProjectId,
-            name: nameInput.value,
-            description: descInput.value
-        });
+        projectService.update({ id: editingProjectId, name, description: desc });
         editingProjectId = null;
-        projectSubmitBtn.textContent = 'Dodaj Projekt';
-        projectSubmitBtn.style.background = ''; // reset koloru
     } else {
-        projectService.create({
-            name: nameInput.value,
-            description: descInput.value
-        });
+        projectService.create({ name, description: desc });
     }
-    projectForm.reset();
+    (e.target as HTMLFormElement).reset();
     render();
 });
 
-// --- HISTORYJKI ---
 function renderStories(projectId: string) {
-    const activeProject = projectService.getAll().find(p => p.id === projectId);
-    if (activeProject) {
-        document.querySelector('#active-project-name')!.textContent = `Tablica: ${activeProject.name}`;
-        document.querySelector('#active-project-desc')!.textContent = activeProject.description;
+    const proj = projectService.getAll().find(p => p.id === projectId);
+    if (proj) {
+        document.querySelector('#active-project-name')!.textContent = `Projekt: ${proj.name}`;
+        document.querySelector('#active-project-desc')!.textContent = proj.description;
     }
 
-    const stories = storyService.getByProject(projectId);
-    const columns = {
-        todo: document.querySelector('#todo-list')!,
-        doing: document.querySelector('#doing-list')!,
-        done: document.querySelector('#done-list')!
-    };
-
+    const columns = { todo: document.querySelector('#todo-list')!, doing: document.querySelector('#doing-list')!, done: document.querySelector('#done-list')! };
     Object.values(columns).forEach(c => c.innerHTML = '');
 
-    stories.forEach(s => {
-        // ZAMIANA ID NA IMIĘ I NAZWISKO
-        const ownerName = s.ownerId === user.id ? `${user.firstName} ${user.lastName}` : s.ownerId;
-
+    storyService.getByProject(projectId).forEach(s => {
+        const owner = authService.getUserById(s.ownerId);
         const li = `
-            <li style="background: white; padding: 10px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">
-                <strong>${s.name}</strong>
+            <li style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 10px; border-left: 4px solid ${s.status === 'done' ? '#28a745' : '#007bff'};">
+                <strong>${s.name}</strong> <span style="font-size: 11px; background: #eee; padding: 2px 4px; border-radius: 3px;">${s.priority}</span>
                 <p style="margin: 5px 0; font-size: 14px;">${s.description}</p>
-                <small style="color: #666;">Priorytet: <b>${s.priority}</b> | Właściciel: <b>${ownerName}</b></small>
+                <small style="color: #666;">Dodał: ${owner ? owner.firstName + ' ' + owner.lastName : 'Nieznany'}</small>
                 
-                <div style="margin-top: 10px; display: flex; gap: 5px;">
-                    ${s.status !== 'todo' ? `<button style="font-size: 11px; padding: 4px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="window.changeStatus('${s.id}', 'todo')">TODO</button>` : ''}
-                    ${s.status !== 'doing' ? `<button style="font-size: 11px; padding: 4px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="window.changeStatus('${s.id}', 'doing')">DOING</button>` : ''}
-                    ${s.status !== 'done' ? `<button style="font-size: 11px; padding: 4px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="window.changeStatus('${s.id}', 'done')">DONE</button>` : ''}
-                    <button style="font-size: 11px; padding: 4px; background: #ff4646; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="window.deleteStory('${s.id}')">Usuń</button>
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ccc;">
+                    <button style="width: 100%; background: #6f42c1; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer;" onclick="window.openStory('${s.id}')">Zarządzaj Zadaniami ➔</button>
                 </div>
             </li>
         `;
@@ -151,45 +109,131 @@ function renderStories(projectId: string) {
     });
 }
 
-backBtn.addEventListener('click', () => {
+document.querySelector('#back-to-projects')!.addEventListener('click', () => {
     projectService.setActiveProjectId(null);
     render();
 });
 
-storyForm.addEventListener('submit', (e) => {
+document.querySelector('#story-form')!.addEventListener('submit', (e) => {
     e.preventDefault();
-    const activeId = projectService.getActiveProjectId();
-    if (!activeId) return;
-
-    const name = document.querySelector<HTMLInputElement>('#story-name')!.value;
-    const desc = document.querySelector<HTMLTextAreaElement>('#story-desc')!.value;
-    const priority = document.querySelector<HTMLSelectElement>('#story-priority')!.value as any;
-
     storyService.create({
-        name,
-        description: desc,
-        priority,
-        projectId: activeId,
+        name: document.querySelector<HTMLInputElement>('#story-name')!.value,
+        description: document.querySelector<HTMLTextAreaElement>('#story-desc')!.value,
+        priority: document.querySelector<HTMLSelectElement>('#story-priority')!.value as any,
+        projectId: projectService.getActiveProjectId()!,
         status: 'todo',
-        ownerId: user.id
+        ownerId: currentUser.id
     });
-    
-    storyForm.reset();
+    (e.target as HTMLFormElement).reset();
     render();
 });
 
-(window as any).changeStatus = (id: string, newStatus: any) => {
-    const story = storyService.getAll().find(s => s.id === id);
-    if (story) {
-        story.status = newStatus;
-        storyService.update(story);
+(window as any).openStory = (id: string) => { activeStoryId = id; render(); };
+
+function renderTasks(storyId: string) {
+    const story = storyService.getAll().find(s => s.id === storyId);
+    if (story) document.querySelector('#active-story-name')!.textContent = story.name;
+
+    const columns = { todo: document.querySelector('#task-todo-list')!, doing: document.querySelector('#task-doing-list')!, done: document.querySelector('#task-done-list')! };
+    Object.values(columns).forEach(c => c.innerHTML = '');
+
+    const assignableUsers = authService.getAssignableUsers();
+    const userOptions = assignableUsers.map(u => `<option value="${u.id}">${u.firstName} ${u.lastName} (${u.role})</option>`).join('');
+
+    taskService.getByStory(storyId).forEach(t => {
+        let actionHTML = '';
+        let detailsHTML = `<small style="display:block; margin-top:5px; color: #555;">Czas: ${t.estimatedTime}h | Priorytet: ${t.priority}</small>`;
+
+        if (t.status === 'todo') {
+            actionHTML = `
+                <div style="margin-top: 10px; display:flex; gap: 5px;">
+                    <select id="assign-${t.id}" style="flex:1; padding: 4px;">
+                        <option value="" disabled selected>Wybierz wykonawcę...</option>
+                        ${userOptions}
+                    </select>
+                    <button style="background: #007bff; color: white; border: none; padding: 4px 8px; cursor: pointer;" onclick="window.startTask('${t.id}')">Start</button>
+                </div>
+            `;
+        } else if (t.status === 'doing') {
+            const assignee = authService.getUserById(t.assignedUserId!);
+            detailsHTML += `<small style="display:block; color: #d35400;">Wykonuje: <b>${assignee?.firstName} ${assignee?.lastName}</b><br>Start: ${new Date(t.startDate!).toLocaleTimeString()}</small>`;
+            actionHTML = `<button style="margin-top: 10px; width: 100%; background: #28a745; color: white; border: none; padding: 6px; cursor: pointer;" onclick="window.finishTask('${t.id}')">Zakończ zadanie ✅</button>`;
+        } else if (t.status === 'done') {
+            const assignee = authService.getUserById(t.assignedUserId!);
+            detailsHTML += `<small style="display:block; color: #28a745;">Wykonano przez: <b>${assignee?.firstName} ${assignee?.lastName}</b><br>Zakończono: ${new Date(t.endDate!).toLocaleTimeString()}</small>`;
+        }
+
+        const li = `
+            <li style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #ccc;">
+                <strong>${t.name}</strong>
+                <p style="margin: 5px 0; font-size: 13px;">${t.description}</p>
+                ${detailsHTML}
+                ${actionHTML}
+                <button style="margin-top: 5px; width: 100%; background: #ff4646; color: white; border: none; padding: 4px; cursor: pointer;" onclick="window.deleteTask('${t.id}')">Usuń zadanie</button>
+            </li>
+        `;
+        (columns as any)[t.status].innerHTML += li;
+    });
+}
+
+document.querySelector('#back-to-project')!.addEventListener('click', () => {
+    activeStoryId = null;
+    render();
+});
+
+document.querySelector('#task-form')!.addEventListener('submit', (e) => {
+    e.preventDefault();
+    taskService.create({
+        name: document.querySelector<HTMLInputElement>('#task-name')!.value,
+        description: document.querySelector<HTMLTextAreaElement>('#task-desc')!.value,
+        estimatedTime: Number(document.querySelector<HTMLInputElement>('#task-time')!.value),
+        priority: document.querySelector<HTMLSelectElement>('#task-priority')!.value as any,
+        storyId: activeStoryId!,
+    });
+    (e.target as HTMLFormElement).reset();
+    render();
+});
+
+(window as any).startTask = (taskId: string) => {
+    const selectEl = document.querySelector<HTMLSelectElement>(`#assign-${taskId}`);
+    if (!selectEl || !selectEl.value) { alert('Musisz przypisać osobę (DevOps / Developer)!'); return; }
+    
+    const task = taskService.getAll().find(t => t.id === taskId);
+    if (task) {
+        task.assignedUserId = selectEl.value;
+        task.status = 'doing';
+        task.startDate = new Date().toISOString();
+        taskService.update(task);
+
+        const story = storyService.getAll().find(s => s.id === task.storyId);
+        if (story && story.status === 'todo') {
+            story.status = 'doing';
+            storyService.update(story);
+        }
         render();
     }
 };
 
-(window as any).deleteStory = (id: string) => {
-    storyService.delete(id);
-    render();
+(window as any).finishTask = (taskId: string) => {
+    const task = taskService.getAll().find(t => t.id === taskId);
+    if (task) {
+        task.status = 'done';
+        task.endDate = new Date().toISOString();
+        taskService.update(task);
+        const storyTasks = taskService.getByStory(task.storyId);
+        const allDone = storyTasks.every(t => t.status === 'done');
+        
+        if (allDone) {
+            const story = storyService.getAll().find(s => s.id === task.storyId);
+            if (story) {
+                story.status = 'done';
+                storyService.update(story);
+            }
+        }
+        render();
+    }
 };
+
+(window as any).deleteTask = (taskId: string) => { taskService.delete(taskId); render(); };
 
 render();
