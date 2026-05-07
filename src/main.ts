@@ -1,162 +1,87 @@
-import { projectAPI } from './api/projectApi';
-import { Project, CreateProjectDTO } from './types';
+import './style.css';
+import { ProjectService } from './storage';
 
-/**
- * Aplikacja do zarządzania projektami - ManageMe
- */
+const service = new ProjectService();
+const form = document.querySelector<HTMLFormElement>('#project-form')!;
+const list = document.querySelector<HTMLUListElement>('#project-list')!;
+const submitBtn = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
 
-// Referencje do elementów DOM
-const projectsContainer = document.getElementById('projectsContainer') as HTMLDivElement;
-const addProjectForm = document.getElementById('addProjectForm') as HTMLFormElement;
+// Zmienna do trzymania ID projektu, który właśnie edytujemy
+let editingId: string | null = null;
 
-/**
- * Renderuje listę projektów
- */
-function renderProjects(): void {
-  const projects = projectAPI.getAll();
-  
-  if (projects.length === 0) {
-    projectsContainer.innerHTML = '<p class="empty-message">Brak projektów. Dodaj pierwszy projekt!</p>';
-    return;
-  }
+function render() {
+    const projects = service.getAll();
+    list.innerHTML = projects.map(p => `
+        <li class="project-item">
+            <div>
+                <strong>${p.name}</strong>
+                <p style="margin: 5px 0 0 0; color: #666;">${p.description}</p>
+            </div>
+            <div>
+                <button class="edit-btn" data-id="${p.id}">Edytuj</button>
+                <button class="delete-btn" data-id="${p.id}">Usuń</button>
+            </div>
+        </li>
+    `).join('');
 
-  projectsContainer.innerHTML = projects.map(project => createProjectCard(project)).join('');
-  
-  // Dodaj nasłuchywacze dla przycisków edycji i usuwania
-  projects.forEach(project => {
-    const deleteBtn = document.getElementById(`delete-${project.id}`);
-    const editBtn = document.getElementById(`edit-${project.id}`);
-    const saveBtn = document.getElementById(`save-${project.id}`);
-    const cancelBtn = document.getElementById(`cancel-${project.id}`);
-    
-    deleteBtn?.addEventListener('click', () => handleDelete(project.id));
-    editBtn?.addEventListener('click', () => handleEdit(project.id));
-    saveBtn?.addEventListener('click', () => handleSave(project.id));
-    cancelBtn?.addEventListener('click', () => handleCancel(project.id));
-  });
+    // Obsługa kliknięcia "Usuń"
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = (e.target as HTMLButtonElement).dataset.id!;
+            service.delete(id);
+            render(); 
+        });
+    });
+
+    // Obsługa kliknięcia "Edytuj"
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = (e.target as HTMLButtonElement).dataset.id!;
+            const projectToEdit = service.getAll().find(p => p.id === id);
+            
+            if (projectToEdit) {
+                // Wrzucamy dane z powrotem do formularza
+                document.querySelector<HTMLInputElement>('#name')!.value = projectToEdit.name;
+                document.querySelector<HTMLTextAreaElement>('#description')!.value = projectToEdit.description;
+                
+                // Przestawiamy aplikację w tryb edycji
+                editingId = projectToEdit.id;
+                submitBtn.textContent = 'Zapisz zmiany';
+                submitBtn.style.background = '#ffb703'; 
+            }
+        });
+    });
 }
 
-/**
- * Tworzy HTML dla pojedynczej karty projektu
- */
-function createProjectCard(project: Project): string {
-  return `
-    <div class="project-card" id="card-${project.id}">
-      <div class="project-info" id="view-${project.id}">
-        <h3>${escapeHtml(project.name)}</h3>
-        <p>${escapeHtml(project.description)}</p>
-        <small>Utworzono: ${new Date(project.createdAt).toLocaleDateString('pl-PL')}</small>
-        <div class="project-actions">
-          <button id="edit-${project.id}" class="btn-edit">Edytuj</button>
-          <button id="delete-${project.id}" class="btn-delete">Usuń</button>
-        </div>
-      </div>
-      <div class="project-edit" id="edit-form-${project.id}" style="display: none;">
-        <input type="text" id="edit-name-${project.id}" value="${escapeHtml(project.name)}" />
-        <textarea id="edit-description-${project.id}">${escapeHtml(project.description)}</textarea>
-        <div class="project-actions">
-          <button id="save-${project.id}" class="btn-save">Zapisz</button>
-          <button id="cancel-${project.id}" class="btn-cancel">Anuluj</button>
-        </div>
-      </div>
-    </div>
-  `;
-}
+// Obsługa formularza (Zapisywanie nowego ALBO Zapisywanie edytowanego)
+form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const nameInput = document.querySelector<HTMLInputElement>('#name')!;
+    const descInput = document.querySelector<HTMLTextAreaElement>('#description')!;
 
-/**
- * Obsługa dodawania nowego projektu
- */
-function handleAddProject(event: Event): void {
-  event.preventDefault();
-  
-  const nameInput = document.getElementById('projectName') as HTMLInputElement;
-  const descriptionInput = document.getElementById('projectDescription') as HTMLTextAreaElement;
-  
-  const dto: CreateProjectDTO = {
-    name: nameInput.value.trim(),
-    description: descriptionInput.value.trim()
-  };
-  
-  if (!dto.name || !dto.description) {
-    alert('Proszę wypełnić wszystkie pola!');
-    return;
-  }
-  
-  projectAPI.create(dto);
-  addProjectForm.reset();
-  renderProjects();
-}
+    if (editingId) {
+        // TRYB EDYCJI: Przekazujemy CAŁY obiekt (razem z ID) 
+        service.update({
+            id: editingId,
+            name: nameInput.value,
+            description: descInput.value
+        });
+        
+        // Wychodzimy z trybu edycji po zapisaniu
+        editingId = null;
+        submitBtn.textContent = 'Dodaj Projekt';
+        submitBtn.style.background = ''; 
+    } else {
+        // TRYB DODAWANIA NOWEGO PROJEKTU
+        service.create({
+            name: nameInput.value,
+            description: descInput.value
+        });
+    }
 
-/**
- * Obsługa usuwania projektu
- */
-function handleDelete(id: string): void {
-  if (confirm('Czy na pewno chcesz usunąć ten projekt?')) {
-    projectAPI.delete(id);
-    renderProjects();
-  }
-}
+    form.reset();
+    render();
+});
 
-/**
- * Przełącza widok na edycję projektu
- */
-function handleEdit(id: string): void {
-  const viewElement = document.getElementById(`view-${id}`);
-  const editElement = document.getElementById(`edit-form-${id}`);
-  
-  if (viewElement && editElement) {
-    viewElement.style.display = 'none';
-    editElement.style.display = 'block';
-  }
-}
-
-/**
- * Zapisuje zmiany w projekcie
- */
-function handleSave(id: string): void {
-  const nameInput = document.getElementById(`edit-name-${id}`) as HTMLInputElement;
-  const descriptionInput = document.getElementById(`edit-description-${id}`) as HTMLTextAreaElement;
-  
-  const name = nameInput.value.trim();
-  const description = descriptionInput.value.trim();
-  
-  if (!name || !description) {
-    alert('Proszę wypełnić wszystkie pola!');
-    return;
-  }
-  
-  projectAPI.update(id, { name, description });
-  renderProjects();
-}
-
-/**
- * Anuluje edycję projektu
- */
-function handleCancel(id: string): void {
-  const viewElement = document.getElementById(`view-${id}`);
-  const editElement = document.getElementById(`edit-form-${id}`);
-  
-  if (viewElement && editElement) {
-    viewElement.style.display = 'block';
-    editElement.style.display = 'none';
-  }
-}
-
-/**
- * Zabezpieczenie przed XSS
- */
-function escapeHtml(text: string): string {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-// Inicjalizacja aplikacji
-function init(): void {
-  addProjectForm.addEventListener('submit', handleAddProject);
-  renderProjects();
-}
-
-// Uruchom aplikację po załadowaniu DOM
-document.addEventListener('DOMContentLoaded', init);
-
+// Pierwsze uruchomienie listy przy starcie aplikacji
+render();
