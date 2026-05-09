@@ -1,8 +1,8 @@
 import './style.css';
-import { ProjectService, UserStoryService, TaskService } from './storage';
+import { ProjectService, UserStoryService, TaskService, NotificationService } from './storage';
 import { AuthService } from './authService';
+import type { Priority } from './types';
 
-// --- LOGIKA TRYBU CIEMNEGO ---
 const themeToggleBtn = document.getElementById('theme-toggle')!;
 if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     document.documentElement.classList.add('dark');
@@ -18,23 +18,116 @@ themeToggleBtn.addEventListener('click', () => {
         localStorage.setItem('theme', 'light');
     }
 });
-// -----------------------------
 
 const projectService = new ProjectService();
 const storyService = new UserStoryService();
 const taskService = new TaskService();
 const authService = new AuthService();
+const notificationService = new NotificationService();
 
 const projectsSection = document.querySelector<HTMLElement>('#projects-section')!;
 const activeProjectSection = document.querySelector<HTMLElement>('#active-project-section')!;
 const activeStorySection = document.querySelector<HTMLElement>('#active-story-section')!;
 const backToProjectsBtn = document.querySelector<HTMLElement>('#back-to-projects')!;
 
+const notifBellBtn = document.querySelector<HTMLElement>('#notif-bell')!;
+const notifBadge = document.querySelector<HTMLElement>('#notif-badge')!;
+const notifModal = document.querySelector<HTMLElement>('#notifications-modal')!;
+const closeNotifModalBtn = document.querySelector<HTMLElement>('#close-notif-modal')!;
+const notifList = document.querySelector<HTMLElement>('#notifications-list')!;
+const toastContainer = document.querySelector<HTMLElement>('#toast-container')!;
+
 let editingProjectId: string | null = null;
 let activeStoryId: string | null = null;
 
 const currentUser = authService.getCurrentUser();
 document.querySelector('#user-info')!.innerHTML = `Zalogowany: <strong>${currentUser.firstName} ${currentUser.lastName}</strong> <span class="ml-2 bg-gray-800 dark:bg-gray-200 text-white dark:text-black px-2 py-1 rounded text-xs font-bold">${currentUser.role.toUpperCase()}</span>`;
+
+function updateBell() {
+    const unreadCount = notificationService.getUnreadCount(currentUser.id);
+    if (unreadCount > 0) {
+        notifBadge.textContent = unreadCount.toString();
+        notifBadge.classList.remove('hidden');
+    } else {
+        notifBadge.classList.add('hidden');
+    }
+}
+
+function showToast(title: string, message: string, priority: Priority) {
+    const bgColors = {
+        low: 'bg-blue-500',
+        medium: 'bg-amber-500',
+        high: 'bg-red-500'
+    };
+    
+    const toast = document.createElement('div');
+    toast.className = `${bgColors[priority]} text-white p-4 rounded-lg shadow-lg flex flex-col gap-1 w-72 animate-bounce cursor-pointer`;
+    toast.innerHTML = `
+        <strong class="text-sm font-bold">${title}</strong>
+        <span class="text-xs opacity-90">${message}</span>
+    `;
+    
+    toast.addEventListener('click', () => {
+        toast.remove();
+        notifModal.classList.remove('hidden');
+        renderNotificationsModal();
+    });
+
+    toastContainer.appendChild(toast);
+
+    setTimeout(() => {
+        if(toast.parentElement) toast.remove();
+    }, 5000);
+}
+
+function sendNotification(recipientId: string, title: string, message: string, priority: Priority) {
+   notificationService.create({ title, message, priority, recipientId });
+    if (recipientId === currentUser.id && (priority === 'high' || priority === 'medium')) {
+        showToast(title, message, priority);
+    }
+    updateBell();
+}
+
+function renderNotificationsModal() {
+    const notifications = notificationService.getForUser(currentUser.id);
+    notifList.innerHTML = notifications.length === 0 ? '<p class="text-gray-500 text-center">Brak powiadomień</p>' : '';
+    
+    notifications.forEach(n => {
+        const bgColors = {
+            low: 'bg-blue-100 text-blue-800',
+            medium: 'bg-amber-100 text-amber-800',
+            high: 'bg-red-100 text-red-800'
+        };
+
+        const item = document.createElement('div');
+        item.className = `p-3 rounded-lg border flex flex-col gap-1 cursor-pointer transition-colors ${n.isRead ? 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 opacity-70' : 'bg-white dark:bg-gray-600 border-blue-300 dark:border-blue-500'}`;
+        item.innerHTML = `
+            <div class="flex justify-between items-start">
+                <strong class="text-sm ${n.isRead ? 'font-normal' : 'font-bold'}">${n.title}</strong>
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${bgColors[n.priority]}">${n.priority}</span>
+            </div>
+            <p class="text-xs text-gray-600 dark:text-gray-300">${n.message}</p>
+            <span class="text-[10px] text-gray-400 mt-1">${new Date(n.date).toLocaleString()}</span>
+        `;
+        
+        item.addEventListener('click', () => {
+            notificationService.markAsRead(n.id);
+            renderNotificationsModal();
+            updateBell();
+        });
+
+        notifList.appendChild(item);
+    });
+}
+
+notifBellBtn.addEventListener('click', () => {
+    notifModal.classList.remove('hidden');
+    renderNotificationsModal();
+});
+
+closeNotifModalBtn.addEventListener('click', () => {
+    notifModal.classList.add('hidden');
+});
 
 function render() {
     const activeProjectId = projectService.getActiveProjectId();
@@ -58,13 +151,14 @@ function render() {
         backToProjectsBtn.classList.add('hidden');
         renderProjects();
     }
+    updateBell();
 }
 
 function renderProjects() {
     const list = document.querySelector('#project-list')!;
     list.innerHTML = projectService.getAll().map(p => `
         <li class="flex flex-col sm:flex-row justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-            <span class="open-project cursor-pointer font-bold text-blue-600 dark:text-blue-400 flex-grow hover:underline" data-id="${p.id}">
+            <span class="open-project cursor-pointer font-bold text-blue-600 dark:text-blue-400 grow hover:underline" data-id="${p.id}">
                 📁 ${p.name}
             </span>
             <div class="mt-4 sm:mt-0 flex gap-2">
@@ -100,7 +194,10 @@ document.querySelector('#project-form')!.addEventListener('submit', (e) => {
         projectService.update({ id: editingProjectId, name, description: desc });
         editingProjectId = null;
     } else {
-        projectService.create({ name, description: desc });
+        const newProj = projectService.create({ name, description: desc });
+        authService.getAdmins().forEach(admin => {
+            sendNotification(admin.id, 'Nowy projekt!', `Projekt "${newProj.name}" został utworzony.`, 'high');
+        });
     }
     (e.target as HTMLFormElement).reset();
     render();
@@ -129,7 +226,7 @@ function renderStories(projectId: string) {
                 <p class="my-2 text-sm text-gray-600 dark:text-gray-300">${s.description}</p>
                 <small class="text-gray-500 dark:text-gray-400 block">Dodał: ${owner ? owner.firstName + ' ' + owner.lastName : 'Nieznany'}</small>
                 
-                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-600">
+                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-600 flex gap-2">
                     <button class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition-colors" onclick="window.openStory('${s.id}')">Zarządzaj Zadaniami ➔</button>
                 </div>
             </li>
@@ -212,13 +309,19 @@ document.querySelector('#back-to-project')!.addEventListener('click', () => {
 
 document.querySelector('#task-form')!.addEventListener('submit', (e) => {
     e.preventDefault();
-    taskService.create({
+    const newTask = taskService.create({
         name: document.querySelector<HTMLInputElement>('#task-name')!.value,
         description: document.querySelector<HTMLTextAreaElement>('#task-desc')!.value,
         estimatedTime: Number(document.querySelector<HTMLInputElement>('#task-time')!.value),
         priority: document.querySelector<HTMLSelectElement>('#task-priority')!.value as any,
         storyId: activeStoryId!,
     });
+    
+    const story = storyService.getAll().find(s => s.id === activeStoryId);
+    if(story) {
+        sendNotification(story.ownerId, 'Nowe zadanie', `W historyjce "${story.name}" dodano zadanie "${newTask.name}".`, 'medium');
+    }
+
     (e.target as HTMLFormElement).reset();
     render();
 });
@@ -226,16 +329,26 @@ document.querySelector('#task-form')!.addEventListener('submit', (e) => {
 (window as any).startTask = (taskId: string) => {
     const selectEl = document.querySelector<HTMLSelectElement>(`#assign-${taskId}`);
     if (!selectEl || !selectEl.value) { alert('Musisz przypisać osobę!'); return; }
+    
     const task = taskService.getAll().find(t => t.id === taskId);
     if (task) {
         task.assignedUserId = selectEl.value;
         task.status = 'doing';
         task.startDate = new Date().toISOString();
         taskService.update(task);
+        
+        const assignee = authService.getUserById(task.assignedUserId);
         const story = storyService.getAll().find(s => s.id === task.storyId);
-        if (story && story.status === 'todo') {
-            story.status = 'doing';
-            storyService.update(story);
+        
+        if (assignee) {
+             sendNotification(assignee.id, 'Nowe przydział!', `Przydzielono Cię do zadania "${task.name}".`, 'high');
+        }
+        if (story) {
+             sendNotification(story.ownerId, 'Zadanie rozpoczęte', `Zadanie "${task.name}" jest w trakcie realizacji.`, 'low');
+             if (story.status === 'todo') {
+                 story.status = 'doing';
+                 storyService.update(story);
+             }
         }
         render();
     }
@@ -247,19 +360,32 @@ document.querySelector('#task-form')!.addEventListener('submit', (e) => {
         task.status = 'done';
         task.endDate = new Date().toISOString();
         taskService.update(task);
+        
+        const story = storyService.getAll().find(s => s.id === task.storyId);
+        if (story) {
+            sendNotification(story.ownerId, 'Zadanie zakończone', `Zadanie "${task.name}" zostało oznaczone jako DONE.`, 'medium');
+        }
+
         const storyTasks = taskService.getByStory(task.storyId);
         const allDone = storyTasks.every(t => t.status === 'done');
-        if (allDone) {
-            const story = storyService.getAll().find(s => s.id === task.storyId);
-            if (story) {
-                story.status = 'done';
-                storyService.update(story);
-            }
+        if (allDone && story) {
+            story.status = 'done';
+            storyService.update(story);
         }
         render();
     }
 };
 
-(window as any).deleteTask = (taskId: string) => { taskService.delete(taskId); render(); };
+(window as any).deleteTask = (taskId: string) => { 
+    const task = taskService.getAll().find(t => t.id === taskId);
+    if(task) {
+        const story = storyService.getAll().find(s => s.id === task.storyId);
+        if (story) {
+            sendNotification(story.ownerId, 'Usunięto zadanie', `Zadanie "${task.name}" zostało usunięte z historyjki.`, 'medium');
+        }
+    }
+    taskService.delete(taskId); 
+    render(); 
+};
 
 render();

@@ -18,4 +18,7 @@ export class AuthService {
     getUserById(id: string): User | undefined {
         return this.users.find(u => u.id === id);
     }
+    getAdmins(): User[] {
+        return this.users.filter(u => u.role === 'admin');
+    }
 }

@@ -1,6 +1,8 @@
 export type Role = 'admin' | 'devops' | 'developer';
 export type Priority = 'low' | 'medium' | 'high';
 export type Status = 'todo' | 'doing' | 'done';
+export type ISOString = string;
+export type UserID = string;
 
 export interface User {
     id: string;
@@ -38,4 +40,13 @@ export interface Task {
     startDate?: string; 
     endDate?: string;
     assignedUserId?: string;
+}
+export interface Notification {
+    id: string;
+    title: string;
+    message: string;
+    date: ISOString;
+    priority: Priority;
+    isRead: boolean;
+    recipientId: UserID;
 }

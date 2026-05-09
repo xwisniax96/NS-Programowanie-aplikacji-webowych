@@ -1,4 +1,4 @@
-import type { Project, UserStory, Task } from './types';
+import type { Project, UserStory, Task, Notification } from './types';
 
 export class ProjectService {
     private readonly STORAGE_KEY = 'manageme_projects';
@@ -106,5 +106,47 @@ export class TaskService {
     delete(id: string): void {
         const tasks = this.getAll().filter(t => t.id !== id);
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(tasks));
+    }
+}
+
+export class NotificationService {
+    private readonly STORAGE_KEY = 'manageme_notifications';
+
+    getAll(): Notification[] {
+        const data = localStorage.getItem(this.STORAGE_KEY);
+        return data ? JSON.parse(data) : [];
+    }
+
+    getForUser(userId: string): Notification[] {
+        return this.getAll()
+            .filter(n => n.recipientId === userId)
+            // Sortowanie od najnowszego (najświeższe na górze)
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
+
+    getUnreadCount(userId: string): number {
+        return this.getForUser(userId).filter(n => !n.isRead).length;
+    }
+
+    create(notifData: Omit<Notification, 'id' | 'date' | 'isRead'>): Notification {
+        const notifications = this.getAll();
+        const newNotif: Notification = {
+            ...notifData,
+            id: crypto.randomUUID(),
+            date: new Date().toISOString(),
+            isRead: false
+        };
+        notifications.push(newNotif);
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(notifications));
+        return newNotif;
+    }
+
+    markAsRead(id: string): void {
+        const notifications = this.getAll();
+        const notif = notifications.find(n => n.id === id);
+        if (notif && !notif.isRead) {
+            notif.isRead = true;
+            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(notifications));
+        }
     }
 }
