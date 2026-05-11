@@ -2,28 +2,29 @@
 <html lang="pl">
   <head>
     <meta charset="UTF-8" />
-    <title>ManageMe</title>
+    <title>ManageMe - Jira Clone</title>
     <link rel="stylesheet" href="/src/style.css">
   </head>
   <body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300 min-h-screen p-4">
     <div id="app" class="max-w-6xl mx-auto">
       
-      <header class="flex justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 dark:border-gray-700">
-        <div class="flex items-center gap-4">
-          <div id="user-info" class="text-lg"></div>
+      <header class="flex flex-col sm:flex-row justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 dark:border-gray-700 gap-4">
+        <div class="flex items-center gap-4 flex-wrap">
+          <div id="user-info" class="text-lg font-bold"></div>
+          
+          <select id="user-switcher" class="p-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm cursor-pointer"></select>
+          
+          <button id="nav-notifications" class="text-blue-600 dark:text-blue-400 hover:underline text-sm font-bold ml-2">Wszystkie powiadomienia</button>
+          
           <button id="notif-bell" class="relative p-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
             🔔 
-            <span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 items-center justify-center rounded-full">0</span>
+            <span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">0</span>
           </button>
         </div>
         
         <div class="flex gap-4">
-          <button id="theme-toggle" class="p-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
-            🌓 Tryb Jasny/Ciemny
-          </button>
-          <button id="back-to-projects" class="hidden px-4 py-2 bg-slate-500 hover:bg-slate-600 text-white rounded-lg transition-colors">
-            ⬅ Wróć do projektów
-          </button>
+          <button id="theme-toggle" class="p-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">🌓</button>
+          <button id="back-to-projects" class="hidden px-4 py-2 bg-slate-500 hover:bg-slate-600 text-white rounded-lg transition-colors">⬅ Projekty</button>
         </div>
       </header>
 
@@ -89,16 +90,22 @@
         </div>
       </section>
 
-      <div id="notifications-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex justify-center items-center p-4">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
-            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <h3 class="text-xl font-bold">Twoje Powiadomienia</h3>
-                <button id="close-notif-modal" class="text-gray-500 hover:text-red-500 font-bold text-xl">&times;</button>
+      <section id="all-notifications-section" class="hidden">
+        <h2 class="text-3xl font-bold mb-6">Wszystkie Powiadomienia</h2>
+        <div id="full-notifications-list" class="space-y-4"></div>
+      </section>
+
+      <section id="single-notification-section" class="hidden">
+        <button id="back-to-notifications" class="mb-6 px-4 py-2 bg-slate-500 hover:bg-slate-600 text-white rounded-lg transition-colors">⬅ Wróć do listy powiadomień</button>
+        <div class="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 relative">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="single-notif-title" class="text-3xl font-bold"></h2>
+                <span id="single-notif-priority" class="px-3 py-1 rounded-full text-xs font-bold uppercase"></span>
             </div>
-            <div id="notifications-list" class="p-4 overflow-y-auto flex-1 space-y-3">
-            </div>
+            <p id="single-notif-date" class="text-sm text-gray-500 mb-6"></p>
+            <p id="single-notif-message" class="text-lg text-gray-800 dark:text-gray-200 mb-8"></p>
         </div>
-      </div>
+      </section>
 
       <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2"></div>
 

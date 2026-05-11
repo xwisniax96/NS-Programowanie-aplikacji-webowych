@@ -25,40 +25,58 @@ const taskService = new TaskService();
 const authService = new AuthService();
 const notificationService = new NotificationService();
 
+// DOM Elements - Sekcje
 const projectsSection = document.querySelector<HTMLElement>('#projects-section')!;
 const activeProjectSection = document.querySelector<HTMLElement>('#active-project-section')!;
 const activeStorySection = document.querySelector<HTMLElement>('#active-story-section')!;
+const allNotificationsSection = document.querySelector<HTMLElement>('#all-notifications-section')!;
+const singleNotificationSection = document.querySelector<HTMLElement>('#single-notification-section')!;
 const backToProjectsBtn = document.querySelector<HTMLElement>('#back-to-projects')!;
 
+// DOM Elements - Powiadomienia i nawigacja
 const notifBellBtn = document.querySelector<HTMLElement>('#notif-bell')!;
+const navNotifBtn = document.querySelector<HTMLElement>('#nav-notifications')!;
 const notifBadge = document.querySelector<HTMLElement>('#notif-badge')!;
-const notifModal = document.querySelector<HTMLElement>('#notifications-modal')!;
-const closeNotifModalBtn = document.querySelector<HTMLElement>('#close-notif-modal')!;
-const notifList = document.querySelector<HTMLElement>('#notifications-list')!;
 const toastContainer = document.querySelector<HTMLElement>('#toast-container')!;
 
+// Stan aplikacji
 let editingProjectId: string | null = null;
 let activeStoryId: string | null = null;
+let showNotificationsView = false;
+let activeNotificationId: string | null = null;
 
+// --- OBSŁUGA UŻYTKOWNIKA ---
 const currentUser = authService.getCurrentUser();
-document.querySelector('#user-info')!.innerHTML = `Zalogowany: <strong>${currentUser.firstName} ${currentUser.lastName}</strong> <span class="ml-2 bg-gray-800 dark:bg-gray-200 text-white dark:text-black px-2 py-1 rounded text-xs font-bold">${currentUser.role.toUpperCase()}</span>`;
+document.querySelector('#user-info')!.innerHTML = `Witaj, ${currentUser.firstName}`;
 
+const userSwitcher = document.querySelector<HTMLSelectElement>('#user-switcher')!;
+authService.getAllUsers().forEach(u => {
+    const opt = document.createElement('option');
+    opt.value = u.id;
+    opt.textContent = `${u.firstName} ${u.lastName} (${u.role})`;
+    if (u.id === currentUser.id) opt.selected = true;
+    userSwitcher.appendChild(opt);
+});
+
+userSwitcher.addEventListener('change', (e) => {
+    authService.login((e.target as HTMLSelectElement).value);
+});
+
+// --- SYSTEM POWIADOMIEŃ ---
 function updateBell() {
     const unreadCount = notificationService.getUnreadCount(currentUser.id);
     if (unreadCount > 0) {
         notifBadge.textContent = unreadCount.toString();
         notifBadge.classList.remove('hidden');
+        notifBadge.classList.add('flex');
     } else {
         notifBadge.classList.add('hidden');
+        notifBadge.classList.remove('flex');
     }
 }
 
-function showToast(title: string, message: string, priority: Priority) {
-    const bgColors = {
-        low: 'bg-blue-500',
-        medium: 'bg-amber-500',
-        high: 'bg-red-500'
-    };
+function showToast(notifId: string, title: string, message: string, priority: Priority) {
+    const bgColors = { low: 'bg-blue-500', medium: 'bg-amber-500', high: 'bg-red-500' };
     
     const toast = document.createElement('div');
     toast.className = `${bgColors[priority]} text-white p-4 rounded-lg shadow-lg flex flex-col gap-1 w-72 animate-bounce cursor-pointer`;
@@ -67,88 +85,122 @@ function showToast(title: string, message: string, priority: Priority) {
         <span class="text-xs opacity-90">${message}</span>
     `;
     
+    // Kliknięcie w toast przenosi do widoku pojedynczego powiadomienia
     toast.addEventListener('click', () => {
         toast.remove();
-        notifModal.classList.remove('hidden');
-        renderNotificationsModal();
+        showNotificationsView = false;
+        activeNotificationId = notifId;
+        render(); 
     });
 
     toastContainer.appendChild(toast);
-
-    setTimeout(() => {
-        if(toast.parentElement) toast.remove();
-    }, 5000);
+    setTimeout(() => { if(toast.parentElement) toast.remove(); }, 5000);
 }
 
 function sendNotification(recipientId: string, title: string, message: string, priority: Priority) {
-   notificationService.create({ title, message, priority, recipientId });
+    const notif = notificationService.create({ title, message, priority, recipientId });
     if (recipientId === currentUser.id && (priority === 'high' || priority === 'medium')) {
-        showToast(title, message, priority);
+        showToast(notif.id, title, message, priority);
     }
     updateBell();
 }
 
-function renderNotificationsModal() {
+// Nawigacja powiadomień
+const openNotifView = () => { showNotificationsView = true; activeNotificationId = null; render(); };
+notifBellBtn.addEventListener('click', openNotifView);
+navNotifBtn.addEventListener('click', openNotifView);
+document.querySelector('#back-to-notifications')!.addEventListener('click', openNotifView);
+
+function renderAllNotifications() {
     const notifications = notificationService.getForUser(currentUser.id);
-    notifList.innerHTML = notifications.length === 0 ? '<p class="text-gray-500 text-center">Brak powiadomień</p>' : '';
+    const list = document.querySelector('#full-notifications-list')!;
+    list.innerHTML = notifications.length === 0 ? '<p class="text-gray-500 text-center mt-10">Brak powiadomień w skrzynce.</p>' : '';
     
     notifications.forEach(n => {
-        const bgColors = {
-            low: 'bg-blue-100 text-blue-800',
-            medium: 'bg-amber-100 text-amber-800',
-            high: 'bg-red-100 text-red-800'
-        };
+        const bgColors = { low: 'border-l-blue-500', medium: 'border-l-amber-500', high: 'border-l-red-500' };
+        const readClass = n.isRead ? 'bg-gray-100 dark:bg-gray-800 opacity-60' : 'bg-white dark:bg-gray-700 font-bold shadow-md';
 
         const item = document.createElement('div');
-        item.className = `p-3 rounded-lg border flex flex-col gap-1 cursor-pointer transition-colors ${n.isRead ? 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 opacity-70' : 'bg-white dark:bg-gray-600 border-blue-300 dark:border-blue-500'}`;
+        item.className = `p-4 rounded-xl border border-gray-200 dark:border-gray-600 flex justify-between items-center transition-colors border-l-4 ${bgColors[n.priority]} ${readClass}`;
+        
+        // Akcja z poziomu listy - oznacz jako przeczytane bez wchodzenia
+        const readBtnHTML = n.isRead ? '' : `<button class="mark-read text-xs bg-gray-200 dark:bg-gray-600 px-3 py-1 rounded hover:bg-gray-300">Oznacz jako przeczytane ✔</button>`;
+        
         item.innerHTML = `
-            <div class="flex justify-between items-start">
-                <strong class="text-sm ${n.isRead ? 'font-normal' : 'font-bold'}">${n.title}</strong>
-                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${bgColors[n.priority]}">${n.priority}</span>
+            <div class="cursor-pointer flex-grow" id="open-notif-${n.id}">
+                <h3 class="text-lg">${n.title}</h3>
+                <span class="text-xs text-gray-500">${new Date(n.date).toLocaleString()}</span>
             </div>
-            <p class="text-xs text-gray-600 dark:text-gray-300">${n.message}</p>
-            <span class="text-[10px] text-gray-400 mt-1">${new Date(n.date).toLocaleString()}</span>
+            ${readBtnHTML}
         `;
         
-        item.addEventListener('click', () => {
-            notificationService.markAsRead(n.id);
-            renderNotificationsModal();
-            updateBell();
+        list.appendChild(item);
+
+        document.querySelector(`#open-notif-${n.id}`)!.addEventListener('click', () => {
+            activeNotificationId = n.id;
+            showNotificationsView = false;
+            render();
         });
 
-        notifList.appendChild(item);
+        if (!n.isRead) {
+            item.querySelector('.mark-read')!.addEventListener('click', (e) => {
+                e.stopPropagation();
+                notificationService.markAsRead(n.id);
+                renderAllNotifications();
+                updateBell();
+            });
+        }
     });
 }
 
-notifBellBtn.addEventListener('click', () => {
-    notifModal.classList.remove('hidden');
-    renderNotificationsModal();
-});
+function renderSingleNotification(id: string) {
+    const notif = notificationService.getAll().find(n => n.id === id);
+    if(!notif) return;
 
-closeNotifModalBtn.addEventListener('click', () => {
-    notifModal.classList.add('hidden');
-});
+    // Automatyczne oznaczenie jako przeczytane po wejściu na widok szczegółów (Zgodnie z wymaganiem)
+    if (!notif.isRead) {
+        notificationService.markAsRead(notif.id);
+        updateBell();
+    }
 
+    const bgColors = { low: 'bg-blue-100 text-blue-800', medium: 'bg-amber-100 text-amber-800', high: 'bg-red-100 text-red-800' };
+
+    document.querySelector('#single-notif-title')!.textContent = notif.title;
+    document.querySelector('#single-notif-priority')!.className = `px-3 py-1 rounded-full text-xs font-bold uppercase ${bgColors[notif.priority]}`;
+    document.querySelector('#single-notif-priority')!.textContent = notif.priority;
+    document.querySelector('#single-notif-date')!.textContent = new Date(notif.date).toLocaleString();
+    document.querySelector('#single-notif-message')!.textContent = notif.message;
+}
+
+// --- GŁÓWNY RENDER I LOGIKA ---
 function render() {
+    // Ukryj wszystkie sekcje
+    projectsSection.classList.add('hidden');
+    activeProjectSection.classList.add('hidden');
+    activeStorySection.classList.add('hidden');
+    allNotificationsSection.classList.add('hidden');
+    singleNotificationSection.classList.add('hidden');
+    backToProjectsBtn.classList.add('hidden');
+
     const activeProjectId = projectService.getActiveProjectId();
 
-    if (activeStoryId) {
-        projectsSection.classList.add('hidden');
-        activeProjectSection.classList.add('hidden');
+    // Pokaz odpowiednia sekcje
+    if (activeNotificationId) {
+        singleNotificationSection.classList.remove('hidden');
+        renderSingleNotification(activeNotificationId);
+    } else if (showNotificationsView) {
+        allNotificationsSection.classList.remove('hidden');
+        renderAllNotifications();
+    } else if (activeStoryId) {
         activeStorySection.classList.remove('hidden');
         backToProjectsBtn.classList.remove('hidden');
         renderTasks(activeStoryId);
     } else if (activeProjectId) {
-        projectsSection.classList.add('hidden');
         activeProjectSection.classList.remove('hidden');
-        activeStorySection.classList.add('hidden');
         backToProjectsBtn.classList.remove('hidden');
         renderStories(activeProjectId);
     } else {
         projectsSection.classList.remove('hidden');
-        activeProjectSection.classList.add('hidden');
-        activeStorySection.classList.add('hidden');
-        backToProjectsBtn.classList.add('hidden');
         renderProjects();
     }
     updateBell();
@@ -188,6 +240,8 @@ function renderProjects() {
 
 document.querySelector('#project-form')!.addEventListener('submit', (e) => {
     e.preventDefault();
+    if (currentUser.role !== 'admin') { alert('Tylko admin może tworzyć projekty!'); return; }
+
     const name = document.querySelector<HTMLInputElement>('#name')!.value;
     const desc = document.querySelector<HTMLTextAreaElement>('#description')!.value;
     if (editingProjectId) {
@@ -237,6 +291,9 @@ function renderStories(projectId: string) {
 
 backToProjectsBtn.addEventListener('click', () => {
     projectService.setActiveProjectId(null);
+    showNotificationsView = false;
+    activeNotificationId = null;
+    activeStoryId = null;
     render();
 });
 
@@ -254,7 +311,7 @@ document.querySelector('#story-form')!.addEventListener('submit', (e) => {
     render();
 });
 
-(window as any).openStory = (id: string) => { activeStoryId = id; render(); };
+(window as any).openStory = (id: string) => { activeStoryId = id; showNotificationsView = false; activeNotificationId = null; render(); };
 
 function renderTasks(storyId: string) {
     const story = storyService.getAll().find(s => s.id === storyId);
@@ -341,7 +398,7 @@ document.querySelector('#task-form')!.addEventListener('submit', (e) => {
         const story = storyService.getAll().find(s => s.id === task.storyId);
         
         if (assignee) {
-             sendNotification(assignee.id, 'Nowe przydział!', `Przydzielono Cię do zadania "${task.name}".`, 'high');
+             sendNotification(assignee.id, 'Nowy przydział!', `Przydzielono Cię do zadania "${task.name}".`, 'high');
         }
         if (story) {
              sendNotification(story.ownerId, 'Zadanie rozpoczęte', `Zadanie "${task.name}" jest w trakcie realizacji.`, 'low');
