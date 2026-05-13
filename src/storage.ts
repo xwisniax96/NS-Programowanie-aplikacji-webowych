@@ -1,152 +1,148 @@
-import type { Project, UserStory, Task, Notification } from './types';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, query, where } from "firebase/firestore";
+import type { Project, UserStory, Task, Notification, Priority } from './types';
+
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyCH3PFbog4w3Z5k1cNXmO_dvVpRyCtYsdM",
+  authDomain: "manageme-5e456.firebaseapp.com",
+  projectId: "manageme-5e456",
+  storageBucket: "manageme-5e456.firebasestorage.app",
+  messagingSenderId: "315560032848",
+  appId: "1:315560032848:web:6d461ff19b1868b3f4ef55"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+
+const db = getFirestore(app);
 
 export class ProjectService {
-    private readonly STORAGE_KEY = 'manageme_projects';
-    private readonly ACTIVE_ID_KEY = 'manageme_active_project_id';
+    private coll = collection(db, 'projects');
+    private activeProjectId: string | null = null;
 
-    getAll(): Project[] {
-        const data = localStorage.getItem(this.STORAGE_KEY);
-        return data ? JSON.parse(data) : [];
-    }
-    save(projects: Project[]): void {
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(projects));
-    }
-    create(data: Omit<Project, 'id'>): Project {
-        const projects = this.getAll();
-        const newProject = { ...data, id: crypto.randomUUID() };
-        projects.push(newProject);
-        this.save(projects);
-        return newProject;
-    }
-    delete(id: string): void {
-        const projects = this.getAll().filter(p => p.id !== id);
-        this.save(projects);
-    }
-    update(updatedProject: Project): void {
-        const projects = this.getAll().map(p => p.id === updatedProject.id ? updatedProject : p);
-        this.save(projects);
+    setActiveProjectId(id: string | null) { this.activeProjectId = id; }
+    getActiveProjectId() { return this.activeProjectId; }
+
+    async getAll(): Promise<Project[]> {
+        const snap = await getDocs(this.coll);
+        return snap.docs.map(d => d.data() as Project);
     }
 
-    // NOWE: Zarządzanie aktywnym projektem
-    setActiveProjectId(id: string | null): void {
-        if (id) localStorage.setItem(this.ACTIVE_ID_KEY, id);
-        else localStorage.removeItem(this.ACTIVE_ID_KEY);
+    async create(data: Omit<Project, 'id'>): Promise<Project> {
+        const newDoc = doc(this.coll); // Automatycznie generuje unikalne ID w chmurze
+        const project = { ...data, id: newDoc.id } as Project;
+        await setDoc(newDoc, project);
+        return project;
     }
 
-    getActiveProjectId(): string | null {
-        return localStorage.getItem(this.ACTIVE_ID_KEY);
+    async update(project: Project): Promise<void> {
+        await setDoc(doc(this.coll, project.id), project);
+    }
+
+    async delete(id: string): Promise<void> {
+        await deleteDoc(doc(this.coll, id));
     }
 }
 
 export class UserStoryService {
-    private readonly STORAGE_KEY = 'manageme_stories';
+    private coll = collection(db, 'userStories');
 
-    getAll(): UserStory[] {
-        const data = localStorage.getItem(this.STORAGE_KEY);
-        return data ? JSON.parse(data) : [];
+    async getAll(): Promise<UserStory[]> {
+        const snap = await getDocs(this.coll);
+        return snap.docs.map(d => d.data() as UserStory);
     }
 
-    getByProject(projectId: string): UserStory[] {
-        return this.getAll().filter(s => s.projectId === projectId);
+    async getByProject(projectId: string): Promise<UserStory[]> {
+        const q = query(this.coll, where('projectId', '==', projectId));
+        const snap = await getDocs(q);
+        return snap.docs.map(d => d.data() as UserStory);
     }
 
-    create(story: Omit<UserStory, 'id' | 'createdAt'>): UserStory {
-        const stories = this.getAll();
-        const newStory: UserStory = {
-            ...story,
-            id: crypto.randomUUID(),
-            createdAt: new Date().toISOString()
-        };
-        stories.push(newStory);
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(stories));
-        return newStory;
+    async create(data: Omit<UserStory, 'id' | 'createdAt'>): Promise<UserStory> {
+        const newDoc = doc(this.coll);
+        const story = { ...data, id: newDoc.id, createdAt: new Date().toISOString() } as UserStory;
+        await setDoc(newDoc, story);
+        return story;
     }
 
-    delete(id: string): void {
-        const stories = this.getAll().filter(s => s.id !== id);
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(stories));
+    async update(story: UserStory): Promise<void> {
+        await setDoc(doc(this.coll, story.id), story);
     }
-
-    update(updatedStory: UserStory): void {
-        const stories = this.getAll().map(s => s.id === updatedStory.id ? updatedStory : s);
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(stories));
+    
+    async delete(id: string): Promise<void> {
+        await deleteDoc(doc(this.coll, id));
     }
 }
 
 export class TaskService {
-    private readonly STORAGE_KEY = 'manageme_tasks';
+    private coll = collection(db, 'tasks');
 
-    getAll(): Task[] {
-        const data = localStorage.getItem(this.STORAGE_KEY);
-        return data ? JSON.parse(data) : [];
+    async getAll(): Promise<Task[]> {
+        const snap = await getDocs(this.coll);
+        return snap.docs.map(d => d.data() as Task);
     }
 
-    getByStory(storyId: string): Task[] {
-        return this.getAll().filter(t => t.storyId === storyId);
+    async getByStory(storyId: string): Promise<Task[]> {
+        const q = query(this.coll, where('storyId', '==', storyId));
+        const snap = await getDocs(q);
+        return snap.docs.map(d => d.data() as Task);
     }
 
-    create(taskData: Omit<Task, 'id' | 'createdAt' | 'status'>): Task {
-        const tasks = this.getAll();
-        const newTask: Task = {
-            ...taskData,
-            id: crypto.randomUUID(),
-            createdAt: new Date().toISOString(),
-            status: 'todo'
-        };
-        tasks.push(newTask);
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(tasks));
-        return newTask;
+    async create(data: Omit<Task, 'id' | 'createdAt' | 'status'>): Promise<Task> {
+        const newDoc = doc(this.coll);
+        const task = { ...data, id: newDoc.id, status: 'todo', createdAt: new Date().toISOString() } as Task;
+        await setDoc(newDoc, task);
+        return task;
     }
 
-    update(updatedTask: Task): void {
-        const tasks = this.getAll().map(t => t.id === updatedTask.id ? updatedTask : t);
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(tasks));
+    async update(task: Task): Promise<void> {
+        await setDoc(doc(this.coll, task.id), task);
     }
 
-    delete(id: string): void {
-        const tasks = this.getAll().filter(t => t.id !== id);
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(tasks));
+    async delete(id: string): Promise<void> {
+        await deleteDoc(doc(this.coll, id));
     }
 }
 
 export class NotificationService {
-    private readonly STORAGE_KEY = 'manageme_notifications';
+    private coll = collection(db, 'notifications');
 
-    getAll(): Notification[] {
-        const data = localStorage.getItem(this.STORAGE_KEY);
-        return data ? JSON.parse(data) : [];
+    async getAll(): Promise<Notification[]> {
+        const snap = await getDocs(this.coll);
+        return snap.docs.map(d => d.data() as Notification);
     }
 
-    getForUser(userId: string): Notification[] {
-        return this.getAll()
-            .filter(n => n.recipientId === userId)
-            // Sortowanie od najnowszego (najświeższe na górze)
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    async getForUser(userId: string): Promise<Notification[]> {
+        const q = query(this.coll, where('recipientId', '==', userId));
+        const snap = await getDocs(q);
+        // Sortujemy powiadomienia od najnowszych
+        return snap.docs.map(d => d.data() as Notification).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }
 
-    getUnreadCount(userId: string): number {
-        return this.getForUser(userId).filter(n => !n.isRead).length;
+    async getUnreadCount(userId: string): Promise<number> {
+        const notifs = await this.getForUser(userId);
+        return notifs.filter(n => !n.isRead).length;
     }
 
-    create(notifData: Omit<Notification, 'id' | 'date' | 'isRead'>): Notification {
-        const notifications = this.getAll();
-        const newNotif: Notification = {
-            ...notifData,
-            id: crypto.randomUUID(),
-            date: new Date().toISOString(),
-            isRead: false
-        };
-        notifications.push(newNotif);
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(notifications));
-        return newNotif;
+    async create(data: { title: string, message: string, priority: Priority, recipientId: string }): Promise<Notification> {
+        const newDoc = doc(this.coll);
+        const notif = { ...data, id: newDoc.id, date: new Date().toISOString(), isRead: false } as Notification;
+        await setDoc(newDoc, notif);
+        return notif;
     }
 
-    markAsRead(id: string): void {
-        const notifications = this.getAll();
-        const notif = notifications.find(n => n.id === id);
-        if (notif && !notif.isRead) {
+    async markAsRead(id: string): Promise<void> {
+        const snap = await getDocs(this.coll);
+        const docSnap = snap.docs.find(d => d.id === id);
+        if (docSnap) {
+            const notif = docSnap.data() as Notification;
             notif.isRead = true;
-            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(notifications));
+            await setDoc(doc(this.coll, id), notif);
         }
     }
 }

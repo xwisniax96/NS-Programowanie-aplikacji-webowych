@@ -1,3 +1,4 @@
+// src/main.ts
 import './style.css';
 import { ProjectService, UserStoryService, TaskService, NotificationService } from './storage';
 import { AuthService } from './authService';
@@ -22,18 +23,16 @@ themeToggleBtn.addEventListener('click', () => {
 const projectService = new ProjectService();
 const storyService = new UserStoryService();
 const taskService = new TaskService();
-const authService = new AuthService();
+const authService = new AuthService(); // Pamiętaj, że AuthService celowo zostawiliśmy w pamięci jako "mock" z wytycznych
 const notificationService = new NotificationService();
 
-// DOM Elements - Sekcje
+// DOM Elements
 const projectsSection = document.querySelector<HTMLElement>('#projects-section')!;
 const activeProjectSection = document.querySelector<HTMLElement>('#active-project-section')!;
 const activeStorySection = document.querySelector<HTMLElement>('#active-story-section')!;
 const allNotificationsSection = document.querySelector<HTMLElement>('#all-notifications-section')!;
 const singleNotificationSection = document.querySelector<HTMLElement>('#single-notification-section')!;
 const backToProjectsBtn = document.querySelector<HTMLElement>('#back-to-projects')!;
-
-// DOM Elements - Powiadomienia i nawigacja
 const notifBellBtn = document.querySelector<HTMLElement>('#notif-bell')!;
 const navNotifBtn = document.querySelector<HTMLElement>('#nav-notifications')!;
 const notifBadge = document.querySelector<HTMLElement>('#notif-badge')!;
@@ -58,13 +57,15 @@ authService.getAllUsers().forEach(u => {
     userSwitcher.appendChild(opt);
 });
 
-userSwitcher.addEventListener('change', (e) => {
+userSwitcher.addEventListener('change', async (e) => {
     authService.login((e.target as HTMLSelectElement).value);
+    // Odświeżamy stronę po zmianie użytkownika
+    window.location.reload(); 
 });
 
 // --- SYSTEM POWIADOMIEŃ ---
-function updateBell() {
-    const unreadCount = notificationService.getUnreadCount(currentUser.id);
+async function updateBell() {
+    const unreadCount = await notificationService.getUnreadCount(currentUser.id);
     if (unreadCount > 0) {
         notifBadge.textContent = unreadCount.toString();
         notifBadge.classList.remove('hidden');
@@ -75,44 +76,39 @@ function updateBell() {
     }
 }
 
-function showToast(notifId: string, title: string, message: string, priority: Priority) {
+async function showToast(notifId: string, title: string, message: string, priority: Priority) {
     const bgColors = { low: 'bg-blue-500', medium: 'bg-amber-500', high: 'bg-red-500' };
     
     const toast = document.createElement('div');
     toast.className = `${bgColors[priority]} text-white p-4 rounded-lg shadow-lg flex flex-col gap-1 w-72 animate-bounce cursor-pointer`;
-    toast.innerHTML = `
-        <strong class="text-sm font-bold">${title}</strong>
-        <span class="text-xs opacity-90">${message}</span>
-    `;
+    toast.innerHTML = `<strong class="text-sm font-bold">${title}</strong><span class="text-xs opacity-90">${message}</span>`;
     
-    // Kliknięcie w toast przenosi do widoku pojedynczego powiadomienia
-    toast.addEventListener('click', () => {
+    toast.addEventListener('click', async () => {
         toast.remove();
         showNotificationsView = false;
         activeNotificationId = notifId;
-        render(); 
+        await render(); 
     });
 
     toastContainer.appendChild(toast);
     setTimeout(() => { if(toast.parentElement) toast.remove(); }, 5000);
 }
 
-function sendNotification(recipientId: string, title: string, message: string, priority: Priority) {
-    const notif = notificationService.create({ title, message, priority, recipientId });
+async function sendNotification(recipientId: string, title: string, message: string, priority: Priority) {
+    const notif = await notificationService.create({ title, message, priority, recipientId });
     if (recipientId === currentUser.id && (priority === 'high' || priority === 'medium')) {
         showToast(notif.id, title, message, priority);
     }
-    updateBell();
+    await updateBell();
 }
 
-// Nawigacja powiadomień
-const openNotifView = () => { showNotificationsView = true; activeNotificationId = null; render(); };
+const openNotifView = async () => { showNotificationsView = true; activeNotificationId = null; await render(); };
 notifBellBtn.addEventListener('click', openNotifView);
 navNotifBtn.addEventListener('click', openNotifView);
 document.querySelector('#back-to-notifications')!.addEventListener('click', openNotifView);
 
-function renderAllNotifications() {
-    const notifications = notificationService.getForUser(currentUser.id);
+async function renderAllNotifications() {
+    const notifications = await notificationService.getForUser(currentUser.id);
     const list = document.querySelector('#full-notifications-list')!;
     list.innerHTML = notifications.length === 0 ? '<p class="text-gray-500 text-center mt-10">Brak powiadomień w skrzynce.</p>' : '';
     
@@ -123,8 +119,9 @@ function renderAllNotifications() {
         const item = document.createElement('div');
         item.className = `p-4 rounded-xl border border-gray-200 dark:border-gray-600 flex justify-between items-center transition-colors border-l-4 ${bgColors[n.priority]} ${readClass}`;
         
-        // Akcja z poziomu listy - oznacz jako przeczytane bez wchodzenia
-        const readBtnHTML = n.isRead ? '' : `<button class="mark-read text-xs bg-gray-200 dark:bg-gray-600 px-3 py-1 rounded hover:bg-gray-300">Oznacz jako przeczytane ✔</button>`;
+        const readBtnHTML = n.isRead ? '' : `<button class="mark-read text-xs bg-gray-200 dark:bg-gray-600 px-3 py-1 rounded hover:bg-gray-300 flex items-center gap-1">
+            Oznacz jako przeczytane <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+        </button>`;
         
         item.innerHTML = `
             <div class="cursor-pointer flex-grow" id="open-notif-${n.id}">
@@ -136,31 +133,31 @@ function renderAllNotifications() {
         
         list.appendChild(item);
 
-        document.querySelector(`#open-notif-${n.id}`)!.addEventListener('click', () => {
+        document.querySelector(`#open-notif-${n.id}`)!.addEventListener('click', async () => {
             activeNotificationId = n.id;
             showNotificationsView = false;
-            render();
+            await render();
         });
 
         if (!n.isRead) {
-            item.querySelector('.mark-read')!.addEventListener('click', (e) => {
+            item.querySelector('.mark-read')!.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                notificationService.markAsRead(n.id);
-                renderAllNotifications();
-                updateBell();
+                await notificationService.markAsRead(n.id);
+                await renderAllNotifications();
+                await updateBell();
             });
         }
     });
 }
 
-function renderSingleNotification(id: string) {
-    const notif = notificationService.getAll().find(n => n.id === id);
+async function renderSingleNotification(id: string) {
+    const allNotifs = await notificationService.getAll();
+    const notif = allNotifs.find(n => n.id === id);
     if(!notif) return;
 
-    // Automatyczne oznaczenie jako przeczytane po wejściu na widok szczegółów (Zgodnie z wymaganiem)
     if (!notif.isRead) {
-        notificationService.markAsRead(notif.id);
-        updateBell();
+        await notificationService.markAsRead(notif.id);
+        await updateBell();
     }
 
     const bgColors = { low: 'bg-blue-100 text-blue-800', medium: 'bg-amber-100 text-amber-800', high: 'bg-red-100 text-red-800' };
@@ -172,9 +169,8 @@ function renderSingleNotification(id: string) {
     document.querySelector('#single-notif-message')!.textContent = notif.message;
 }
 
-// --- GŁÓWNY RENDER I LOGIKA ---
-function render() {
-    // Ukryj wszystkie sekcje
+// GŁÓWNA FUNKCJA RENDERUJĄCA (teraz ASYNC)
+async function render() {
     projectsSection.classList.add('hidden');
     activeProjectSection.classList.add('hidden');
     activeStorySection.classList.add('hidden');
@@ -184,34 +180,40 @@ function render() {
 
     const activeProjectId = projectService.getActiveProjectId();
 
-    // Pokaz odpowiednia sekcje
     if (activeNotificationId) {
         singleNotificationSection.classList.remove('hidden');
-        renderSingleNotification(activeNotificationId);
+        backToProjectsBtn.classList.remove('hidden'); 
+        await renderSingleNotification(activeNotificationId);
     } else if (showNotificationsView) {
         allNotificationsSection.classList.remove('hidden');
-        renderAllNotifications();
+        backToProjectsBtn.classList.remove('hidden'); 
+        await renderAllNotifications();
     } else if (activeStoryId) {
         activeStorySection.classList.remove('hidden');
         backToProjectsBtn.classList.remove('hidden');
-        renderTasks(activeStoryId);
+        await renderTasks(activeStoryId);
     } else if (activeProjectId) {
         activeProjectSection.classList.remove('hidden');
         backToProjectsBtn.classList.remove('hidden');
-        renderStories(activeProjectId);
+        await renderStories(activeProjectId);
     } else {
         projectsSection.classList.remove('hidden');
-        renderProjects();
+        await renderProjects();
     }
-    updateBell();
+    await updateBell();
 }
 
-function renderProjects() {
+async function renderProjects() {
     const list = document.querySelector('#project-list')!;
-    list.innerHTML = projectService.getAll().map(p => `
+    const projects = await projectService.getAll();
+    
+    list.innerHTML = projects.map(p => `
         <li class="flex flex-col sm:flex-row justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-            <span class="open-project cursor-pointer font-bold text-blue-600 dark:text-blue-400 grow hover:underline" data-id="${p.id}">
-                📁 ${p.name}
+            <span class="open-project cursor-pointer font-bold text-blue-600 dark:text-blue-400 grow hover:underline flex items-center gap-2" data-id="${p.id}">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-gray-500 dark:text-gray-400">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+                </svg>
+                ${p.name}
             </span>
             <div class="mt-4 sm:mt-0 flex gap-2">
                 <button class="edit-btn bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg transition-colors" data-id="${p.id}">Edytuj</button>
@@ -220,16 +222,18 @@ function renderProjects() {
         </li>
     `).join('');
 
-    document.querySelectorAll('.open-project').forEach(el => el.addEventListener('click', (e) => {
-        projectService.setActiveProjectId((e.target as HTMLElement).dataset.id!);
-        render();
+    document.querySelectorAll('.open-project').forEach(el => el.addEventListener('click', async (e) => {
+        projectService.setActiveProjectId((e.currentTarget as HTMLElement).dataset.id!);
+        await render();
     }));
-    document.querySelectorAll('.delete-btn').forEach(btn => btn.addEventListener('click', (e) => {
-        projectService.delete((e.target as HTMLButtonElement).dataset.id!);
-        render();
+    document.querySelectorAll('.delete-btn').forEach(btn => btn.addEventListener('click', async (e) => {
+        await projectService.delete((e.target as HTMLButtonElement).dataset.id!);
+        await render();
     }));
-    document.querySelectorAll('.edit-btn').forEach(btn => btn.addEventListener('click', (e) => {
-        const p = projectService.getAll().find(p => p.id === (e.target as HTMLButtonElement).dataset.id!);
+    document.querySelectorAll('.edit-btn').forEach(btn => btn.addEventListener('click', async (e) => {
+        const idToEdit = (e.target as HTMLButtonElement).dataset.id!;
+        const allProjects = await projectService.getAll();
+        const p = allProjects.find(proj => proj.id === idToEdit);
         if (p) {
             document.querySelector<HTMLInputElement>('#name')!.value = p.name;
             document.querySelector<HTMLTextAreaElement>('#description')!.value = p.description;
@@ -238,27 +242,36 @@ function renderProjects() {
     }));
 }
 
-document.querySelector('#project-form')!.addEventListener('submit', (e) => {
+document.querySelector('#project-form')!.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (currentUser.role !== 'admin') { alert('Tylko admin może tworzyć projekty!'); return; }
 
     const name = document.querySelector<HTMLInputElement>('#name')!.value;
     const desc = document.querySelector<HTMLTextAreaElement>('#description')!.value;
+    
     if (editingProjectId) {
-        projectService.update({ id: editingProjectId, name, description: desc });
+        const allProjects = await projectService.getAll();
+        const projectToUpdate = allProjects.find(p => p.id === editingProjectId);
+        if(projectToUpdate) {
+            projectToUpdate.name = name;
+            projectToUpdate.description = desc;
+            await projectService.update(projectToUpdate);
+        }
         editingProjectId = null;
     } else {
-        const newProj = projectService.create({ name, description: desc });
-        authService.getAdmins().forEach(admin => {
-            sendNotification(admin.id, 'Nowy projekt!', `Projekt "${newProj.name}" został utworzony.`, 'high');
-        });
+        const newProj = await projectService.create({ name, description: desc });
+        const admins = authService.getAdmins();
+        for (const admin of admins) {
+            await sendNotification(admin.id, 'Nowy projekt!', `Projekt "${newProj.name}" został utworzony.`, 'high');
+        }
     }
     (e.target as HTMLFormElement).reset();
-    render();
+    await render();
 });
 
-function renderStories(projectId: string) {
-    const proj = projectService.getAll().find(p => p.id === projectId);
+async function renderStories(projectId: string) {
+    const allProjects = await projectService.getAll();
+    const proj = allProjects.find(p => p.id === projectId);
     if (proj) {
         document.querySelector('#active-project-name')!.textContent = `Projekt: ${proj.name}`;
         document.querySelector('#active-project-desc')!.textContent = proj.description;
@@ -267,7 +280,8 @@ function renderStories(projectId: string) {
     const columns = { todo: document.querySelector('#todo-list')!, doing: document.querySelector('#doing-list')!, done: document.querySelector('#done-list')! };
     Object.values(columns).forEach(c => c.innerHTML = '');
 
-    storyService.getByProject(projectId).forEach(s => {
+    const stories = await storyService.getByProject(projectId);
+    stories.forEach(s => {
         const owner = authService.getUserById(s.ownerId);
         const borderColor = s.status === 'done' ? 'border-l-green-500' : 'border-l-blue-500';
         
@@ -281,7 +295,10 @@ function renderStories(projectId: string) {
                 <small class="text-gray-500 dark:text-gray-400 block">Dodał: ${owner ? owner.firstName + ' ' + owner.lastName : 'Nieznany'}</small>
                 
                 <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-600 flex gap-2">
-                    <button class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition-colors" onclick="window.openStory('${s.id}')">Zarządzaj Zadaniami ➔</button>
+                    <button class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition-colors flex justify-center items-center gap-2" onclick="window.openStory('${s.id}')">
+                        Zarządzaj Zadaniami
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+                    </button>
                 </div>
             </li>
         `;
@@ -289,17 +306,17 @@ function renderStories(projectId: string) {
     });
 }
 
-backToProjectsBtn.addEventListener('click', () => {
+backToProjectsBtn.addEventListener('click', async () => {
     projectService.setActiveProjectId(null);
     showNotificationsView = false;
     activeNotificationId = null;
     activeStoryId = null;
-    render();
+    await render();
 });
 
-document.querySelector('#story-form')!.addEventListener('submit', (e) => {
+document.querySelector('#story-form')!.addEventListener('submit', async (e) => {
     e.preventDefault();
-    storyService.create({
+    await storyService.create({
         name: document.querySelector<HTMLInputElement>('#story-name')!.value,
         description: document.querySelector<HTMLTextAreaElement>('#story-desc')!.value,
         priority: document.querySelector<HTMLSelectElement>('#story-priority')!.value as any,
@@ -308,13 +325,14 @@ document.querySelector('#story-form')!.addEventListener('submit', (e) => {
         ownerId: currentUser.id
     });
     (e.target as HTMLFormElement).reset();
-    render();
+    await render();
 });
 
-(window as any).openStory = (id: string) => { activeStoryId = id; showNotificationsView = false; activeNotificationId = null; render(); };
+(window as any).openStory = async (id: string) => { activeStoryId = id; showNotificationsView = false; activeNotificationId = null; await render(); };
 
-function renderTasks(storyId: string) {
-    const story = storyService.getAll().find(s => s.id === storyId);
+async function renderTasks(storyId: string) {
+    const allStories = await storyService.getAll();
+    const story = allStories.find(s => s.id === storyId);
     if (story) document.querySelector('#active-story-name')!.textContent = story.name;
 
     const columns = { todo: document.querySelector('#task-todo-list')!, doing: document.querySelector('#task-doing-list')!, done: document.querySelector('#task-done-list')! };
@@ -323,7 +341,8 @@ function renderTasks(storyId: string) {
     const assignableUsers = authService.getAssignableUsers();
     const userOptions = assignableUsers.map(u => `<option value="${u.id}">${u.firstName} ${u.lastName} (${u.role})</option>`).join('');
 
-    taskService.getByStory(storyId).forEach(t => {
+    const tasks = await taskService.getByStory(storyId);
+    tasks.forEach(t => {
         let actionHTML = '';
         let detailsHTML = `<small class="block mt-2 text-gray-500 dark:text-gray-400">Czas: ${t.estimatedTime}h | Priorytet: ${t.priority}</small>`;
 
@@ -340,7 +359,10 @@ function renderTasks(storyId: string) {
         } else if (t.status === 'doing') {
             const assignee = authService.getUserById(t.assignedUserId!);
             detailsHTML += `<small class="block text-amber-600 dark:text-amber-400 mt-1">Wykonuje: <b>${assignee?.firstName} ${assignee?.lastName}</b><br>Start: ${new Date(t.startDate!).toLocaleTimeString()}</small>`;
-            actionHTML = `<button class="mt-3 w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded transition-colors" onclick="window.finishTask('${t.id}')">Zakończ zadanie ✅</button>`;
+            actionHTML = `<button class="mt-3 w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded transition-colors flex justify-center items-center gap-2" onclick="window.finishTask('${t.id}')">
+                Zakończ zadanie
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+            </button>`;
         } else if (t.status === 'done') {
             const assignee = authService.getUserById(t.assignedUserId!);
             detailsHTML += `<small class="block text-green-600 dark:text-green-400 mt-1">Wykonano przez: <b>${assignee?.firstName} ${assignee?.lastName}</b><br>Zakończono: ${new Date(t.endDate!).toLocaleTimeString()}</small>`;
@@ -359,14 +381,14 @@ function renderTasks(storyId: string) {
     });
 }
 
-document.querySelector('#back-to-project')!.addEventListener('click', () => {
+document.querySelector('#back-to-project')!.addEventListener('click', async () => {
     activeStoryId = null;
-    render();
+    await render();
 });
 
-document.querySelector('#task-form')!.addEventListener('submit', (e) => {
+document.querySelector('#task-form')!.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const newTask = taskService.create({
+    const newTask = await taskService.create({
         name: document.querySelector<HTMLInputElement>('#task-name')!.value,
         description: document.querySelector<HTMLTextAreaElement>('#task-desc')!.value,
         estimatedTime: Number(document.querySelector<HTMLInputElement>('#task-time')!.value),
@@ -374,75 +396,82 @@ document.querySelector('#task-form')!.addEventListener('submit', (e) => {
         storyId: activeStoryId!,
     });
     
-    const story = storyService.getAll().find(s => s.id === activeStoryId);
+    const allStories = await storyService.getAll();
+    const story = allStories.find(s => s.id === activeStoryId);
     if(story) {
-        sendNotification(story.ownerId, 'Nowe zadanie', `W historyjce "${story.name}" dodano zadanie "${newTask.name}".`, 'medium');
+        await sendNotification(story.ownerId, 'Nowe zadanie', `W historyjce "${story.name}" dodano zadanie "${newTask.name}".`, 'medium');
     }
 
     (e.target as HTMLFormElement).reset();
-    render();
+    await render();
 });
 
-(window as any).startTask = (taskId: string) => {
+(window as any).startTask = async (taskId: string) => {
     const selectEl = document.querySelector<HTMLSelectElement>(`#assign-${taskId}`);
     if (!selectEl || !selectEl.value) { alert('Musisz przypisać osobę!'); return; }
     
-    const task = taskService.getAll().find(t => t.id === taskId);
+    const allTasks = await taskService.getAll();
+    const task = allTasks.find(t => t.id === taskId);
     if (task) {
         task.assignedUserId = selectEl.value;
         task.status = 'doing';
         task.startDate = new Date().toISOString();
-        taskService.update(task);
+        await taskService.update(task);
         
         const assignee = authService.getUserById(task.assignedUserId);
-        const story = storyService.getAll().find(s => s.id === task.storyId);
+        const allStories = await storyService.getAll();
+        const story = allStories.find(s => s.id === task.storyId);
         
         if (assignee) {
-             sendNotification(assignee.id, 'Nowy przydział!', `Przydzielono Cię do zadania "${task.name}".`, 'high');
+             await sendNotification(assignee.id, 'Nowy przydział!', `Przydzielono Cię do zadania "${task.name}".`, 'high');
         }
         if (story) {
-             sendNotification(story.ownerId, 'Zadanie rozpoczęte', `Zadanie "${task.name}" jest w trakcie realizacji.`, 'low');
+             await sendNotification(story.ownerId, 'Zadanie rozpoczęte', `Zadanie "${task.name}" jest w trakcie realizacji.`, 'low');
              if (story.status === 'todo') {
                  story.status = 'doing';
-                 storyService.update(story);
+                 await storyService.update(story);
              }
         }
-        render();
+        await render();
     }
 };
 
-(window as any).finishTask = (taskId: string) => {
-    const task = taskService.getAll().find(t => t.id === taskId);
+(window as any).finishTask = async (taskId: string) => {
+    const allTasks = await taskService.getAll();
+    const task = allTasks.find(t => t.id === taskId);
     if (task) {
         task.status = 'done';
         task.endDate = new Date().toISOString();
-        taskService.update(task);
+        await taskService.update(task);
         
-        const story = storyService.getAll().find(s => s.id === task.storyId);
+        const allStories = await storyService.getAll();
+        const story = allStories.find(s => s.id === task.storyId);
         if (story) {
-            sendNotification(story.ownerId, 'Zadanie zakończone', `Zadanie "${task.name}" zostało oznaczone jako DONE.`, 'medium');
+            await sendNotification(story.ownerId, 'Zadanie zakończone', `Zadanie "${task.name}" zostało oznaczone jako DONE.`, 'medium');
         }
 
-        const storyTasks = taskService.getByStory(task.storyId);
+        const storyTasks = await taskService.getByStory(task.storyId);
         const allDone = storyTasks.every(t => t.status === 'done');
         if (allDone && story) {
             story.status = 'done';
-            storyService.update(story);
+            await storyService.update(story);
         }
-        render();
+        await render();
     }
 };
 
-(window as any).deleteTask = (taskId: string) => { 
-    const task = taskService.getAll().find(t => t.id === taskId);
+(window as any).deleteTask = async (taskId: string) => { 
+    const allTasks = await taskService.getAll();
+    const task = allTasks.find(t => t.id === taskId);
     if(task) {
-        const story = storyService.getAll().find(s => s.id === task.storyId);
+        const allStories = await storyService.getAll();
+        const story = allStories.find(s => s.id === task.storyId);
         if (story) {
-            sendNotification(story.ownerId, 'Usunięto zadanie', `Zadanie "${task.name}" zostało usunięte z historyjki.`, 'medium');
+            await sendNotification(story.ownerId, 'Usunięto zadanie', `Zadanie "${task.name}" zostało usunięte z historyjki.`, 'medium');
         }
     }
-    taskService.delete(taskId); 
-    render(); 
+    await taskService.delete(taskId); 
+    await render(); 
 };
 
 render();
