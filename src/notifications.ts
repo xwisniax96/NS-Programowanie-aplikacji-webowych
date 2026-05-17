@@ -27,7 +27,7 @@ export async function showToast(notifId: string, title: string, message: string,
         toast.remove();
         appState.showNotificationsView = false;
         appState.activeNotificationId = notifId;
-        triggerRender(); // Sygnał dla main.ts, że ma przerysować ekran!
+        triggerRender();
     });
 
     toastContainer.appendChild(toast);
@@ -59,7 +59,7 @@ export async function renderAllNotifications() {
         </button>`;
         
         item.innerHTML = `
-            <div class="cursor-pointer flex-grow" id="open-notif-${n.id}">
+            <div class="cursor-pointer grow" id="open-notif-${n.id}">
                 <h3 class="text-lg">${n.title}</h3>
                 <span class="text-xs text-gray-500">${new Date(n.date).toLocaleString()}</span>
             </div>
