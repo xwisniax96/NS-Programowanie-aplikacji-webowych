@@ -34,42 +34,34 @@ userSwitcher.addEventListener('change', async (e) => {
 });
 
 // --- GŁÓWNY SYSTEM RENDEROWANIA ---
-
-// Nasłuchujemy na nasz customowy sygnał odświeżania z innych plików!
 window.addEventListener('app:render', async () => {
     await render();
 });
 
 async function render() {
-    projectsSection.classList.add('hidden');
-    activeProjectSection.classList.add('hidden');
-    activeStorySection.classList.add('hidden');
-    allNotificationsSection.classList.add('hidden');
-    singleNotificationSection.classList.add('hidden');
-    backToProjectsBtn.classList.add('hidden');
+    [projectsSection, activeProjectSection, activeStorySection, allNotificationsSection, singleNotificationSection, backToProjectsBtn]
+        .forEach(el => el.classList.add('hidden'));
 
     const activeProjectId = projectService.getActiveProjectId();
 
+    const showView = async (section: HTMLElement, renderAction: () => Promise<void>, showBackBtn = true) => {
+        section.classList.remove('hidden');
+        if (showBackBtn) backToProjectsBtn.classList.remove('hidden');
+        await renderAction();
+    };
+
     if (appState.activeNotificationId) {
-        singleNotificationSection.classList.remove('hidden');
-        backToProjectsBtn.classList.remove('hidden'); 
-        await renderSingleNotification(appState.activeNotificationId);
+        await showView(singleNotificationSection, () => renderSingleNotification(appState.activeNotificationId!));
     } else if (appState.showNotificationsView) {
-        allNotificationsSection.classList.remove('hidden');
-        backToProjectsBtn.classList.remove('hidden'); 
-        await renderAllNotifications();
+        await showView(allNotificationsSection, renderAllNotifications);
     } else if (appState.activeStoryId) {
-        activeStorySection.classList.remove('hidden');
-        backToProjectsBtn.classList.remove('hidden');
-        await renderTasks(appState.activeStoryId);
+        await showView(activeStorySection, () => renderTasks(appState.activeStoryId!));
     } else if (activeProjectId) {
-        activeProjectSection.classList.remove('hidden');
-        backToProjectsBtn.classList.remove('hidden');
-        await renderStories(activeProjectId);
+        await showView(activeProjectSection, () => renderStories(activeProjectId));
     } else {
-        projectsSection.classList.remove('hidden');
-        await renderProjects();
+        await showView(projectsSection, renderProjects, false);
     }
+    
     await updateBell();
 }
 
@@ -313,6 +305,4 @@ document.querySelector('#task-form')!.addEventListener('submit', async (e) => {
     await taskService.delete(taskId); 
     await render(); 
 };
-
-// Pierwsze uruchomienie aplikacji
 render();
